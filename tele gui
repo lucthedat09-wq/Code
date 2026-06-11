@@ -1,0 +1,20 @@
+local player = game.Players.LocalPlayer
+
+local gui = Instance.new("ScreenGui")
+gui.Parent = player.PlayerGui
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 120, 0, 50)
+button.Position = UDim2.new(0.05, 0, 0.8, 0)
+button.Text = "Teleport"
+button.Parent = gui
+
+button.MouseButton1Click:Connect(function()
+    local character = player.Character
+    if character then
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(100, 50, 200)
+        end
+    end
+end)
