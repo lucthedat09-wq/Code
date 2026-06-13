@@ -1,0 +1,273 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+ 
+local LocalPlayer = Players.LocalPlayer
+ 
+local Enabled = false
+local FOV = 180
+local TeamCheck = true
+local WallCheck = true
+local TargetPart = "HumanoidRootPart"
+local TargetType = "ALL"
+ 
+local StartTime = tick()
+ 
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "Aim test"
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer.PlayerGui
+ 
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0,260,0,325)
+frame.Position = UDim2.new(0,20,0.5,-160)
+frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+ 
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,8)
+ 
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,35)
+title.BackgroundTransparency = 1
+title.Text = "Aim test"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.Parent = frame
+ 
+local runtimeLabel = Instance.new("TextLabel")
+runtimeLabel.Size = UDim2.new(1,0,0,25)
+runtimeLabel.Position = UDim2.new(0,0,0,30)
+runtimeLabel.BackgroundTransparency = 1
+runtimeLabel.TextColor3 = Color3.fromRGB(180,180,180)
+runtimeLabel.Font = Enum.Font.Gotham
+runtimeLabel.TextSize = 13
+runtimeLabel.Parent = frame
+ 
+local function btn(text,y)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0,110,0,35)
+	b.Position = UDim2.new(0,10,0,y)
+	b.BackgroundColor3 = Color3.fromRGB(35,35,35)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Font = Enum.Font.Gotham
+	b.TextSize = 14
+	b.Text = text
+	b.Parent = frame
+	Instance.new("UICorner", b)
+	return b
+end
+ 
+local lockBtn = btn("LOCK OFF",65)
+local teamBtn = btn("TEAM ON",110)
+local wallBtn = btn("WALL ON",155)
+ 
+local plusBtn = btn("FOV +",65)
+plusBtn.Position = UDim2.new(0,135,0,65)
+ 
+local minusBtn = btn("FOV -",110)
+minusBtn.Position = UDim2.new(0,135,0,110)
+ 
+local partBtn = btn("TARGET: BODY",155)
+partBtn.Position = UDim2.new(0,135,0,155)
+ 
+local typeBtn = btn("TYPE: ALL",200)
+typeBtn.Position = UDim2.new(0,135,0,200)
+ 
+-- FOV Circle
+local circle = Drawing.new("Circle")
+circle.Color = Color3.new(1,1,1)
+circle.Thickness = 1.5
+circle.Filled = false
+ 
+-- Visibility
+local function visible(char)
+ 
+	if not WallCheck then
+		return true
+	end
+ 
+	local part = char:FindFirstChild(TargetPart)
+	if not part then
+		return false
+	end
+ 
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	params.FilterDescendantsInstances = {
+		LocalPlayer.Character,
+		char
+	}
+ 
+	local result = workspace:Raycast(
+		Camera.CFrame.Position,
+		part.Position - Camera.CFrame.Position,
+		params
+	)
+ 
+	return result == nil
+end
+ 
+-- Target Finder
+local function getTarget()
+ 
+	local closest
+	local shortest = FOV
+	local targets = {}
+ 
+	-- PLAYER
+	if TargetType == "PLAYER" or TargetType == "ALL" then
+		for _,p in ipairs(Players:GetPlayers()) do
+			if p ~= LocalPlayer and p.Character then
+				table.insert(targets,{
+					Character = p.Character,
+					Player = p
+				})
+			end
+		end
+	end
+ 
+	-- NPC
+	if TargetType == "NPC" or TargetType == "ALL" then
+		for _,m in ipairs(workspace:GetChildren()) do
+			if m:IsA("Model")
+			and m:FindFirstChild("Humanoid")
+			and not Players:GetPlayerFromCharacter(m) then
+ 
+				table.insert(targets,{
+					Character = m,
+					Player = nil
+				})
+			end
+		end
+	end
+ 
+	for _,data in ipairs(targets) do
+ 
+		local char = data.Character
+		local plr = data.Player
+ 
+		if plr and TeamCheck and plr.Team == LocalPlayer.Team then
+			continue
+		end
+ 
+		local part = char:FindFirstChild(TargetPart)
+		local hum = char:FindFirstChildOfClass("Humanoid")
+ 
+		if part and hum and hum.Health > 0 then
+ 
+			local pos,onScreen =
+				Camera:WorldToViewportPoint(part.Position)
+ 
+			if onScreen and visible(char) then
+ 
+				local dist = (
+					Vector2.new(pos.X,pos.Y) -
+					Vector2.new(
+						Camera.ViewportSize.X/2,
+						Camera.ViewportSize.Y/2
+					)
+				).Magnitude
+ 
+				if dist < shortest then
+					shortest = dist
+					closest = char
+				end
+			end
+		end
+	end
+ 
+	return closest
+end
+ 
+-- Buttons
+lockBtn.MouseButton1Click:Connect(function()
+	Enabled = not Enabled
+	lockBtn.Text = Enabled and "LOCK ON" or "LOCK OFF"
+end)
+ 
+teamBtn.MouseButton1Click:Connect(function()
+	TeamCheck = not TeamCheck
+	teamBtn.Text = TeamCheck and "TEAM ON" or "TEAM OFF"
+end)
+ 
+wallBtn.MouseButton1Click:Connect(function()
+	WallCheck = not WallCheck
+	wallBtn.Text = WallCheck and "WALL ON" or "WALL OFF"
+end)
+ 
+plusBtn.MouseButton1Click:Connect(function()
+	FOV += 10
+end)
+ 
+minusBtn.MouseButton1Click:Connect(function()
+	FOV = math.max(50,FOV-10)
+end)
+ 
+partBtn.MouseButton1Click:Connect(function()
+ 
+	if TargetPart == "HumanoidRootPart" then
+		TargetPart = "Head"
+		partBtn.Text = "TARGET: HEAD"
+	else
+		TargetPart = "HumanoidRootPart"
+		partBtn.Text = "TARGET: BODY"
+	end
+ 
+end)
+ 
+typeBtn.MouseButton1Click:Connect(function()
+ 
+	if TargetType == "ALL" then
+		TargetType = "PLAYER"
+		typeBtn.Text = "TYPE: PLAYER"
+ 
+	elseif TargetType == "PLAYER" then
+		TargetType = "NPC"
+		typeBtn.Text = "TYPE: NPC"
+ 
+	else
+		TargetType = "ALL"
+		typeBtn.Text = "TYPE: ALL"
+	end
+ 
+end)
+ 
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+ 
+	local runtime = math.floor(tick() - StartTime)
+ 
+	runtimeLabel.Text =
+		"Runtime: "..runtime.."s"
+ 
+	circle.Position = Vector2.new(
+		Camera.ViewportSize.X/2,
+		Camera.ViewportSize.Y/2
+	)
+ 
+	circle.Radius = FOV
+	circle.Visible = true
+ 
+	if not Enabled then return end
+ 
+	local target = getTarget()
+ 
+	if target then
+ 
+		local part = target:FindFirstChild(TargetPart)
+ 
+		if part then
+ 
+			local camPos = Camera.CFrame.Position
+ 
+			-- Hard Lock
+			Camera.CFrame =
+				CFrame.new(camPos, part.Position)
+		end
+	end
+end)
