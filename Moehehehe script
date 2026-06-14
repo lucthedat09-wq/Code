@@ -34,7 +34,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
      local Tab2o = MakeTab({Name = "Aimbot all game"})
      local Tab3o = MakeTab({Name = "the strongest battleground"})
      local Tab4o = MakeTab({Name = "jujutsu shenanigans"})
-     local Tab5o = MakeTab({Name = "the strongest battleground"})
+     local Tab5o = MakeTab({Name = "others"})
      
 ------- BUTTON
     
