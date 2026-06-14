@@ -45,13 +45,6 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   end
   })
 
-  AddButton(Tab5o, {
-     Name = "unknown v1",
-    Callback = function()
-      loadstring(game:HttpGet("https://raw.githubusercontent.com/htnghi1953-code/GPhuchub/refs/heads/main/GPhucEvade"))()
-  end
-  })
-
   AddButton(Tab6o, {
      Name = "emote",
     Callback = function()
@@ -112,5 +105,12 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
      Name = "fullbright toggle gui",
     Callback = function()
 	  loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-invisible-gui-deobfuscated-67857"))()
+  end
+  })
+
+AddButton(Tab5o, {
+     Name = "GPhuchub",
+    Callback = function()
+	  loadstring(game:HttpGet("https://raw.githubusercontent.com/htnghi1953-code/GPhuchub/refs/heads/main/GPhucEvade"))()
   end
   })
