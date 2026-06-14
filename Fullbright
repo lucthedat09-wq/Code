@@ -1,0 +1,94 @@
+local UIS = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+ 
+local UI = Instance.new("ScreenGui")
+local MainButton = Instance.new("TextButton")
+local RoundedCorner = Instance.new("UICorner")
+ 
+local TargetParent = CoreGui:FindFirstChild("RobloxGui") and CoreGui or Players.LocalPlayer:WaitForChild("PlayerGui")
+ 
+UI.Name = "UtilityHub"
+UI.Parent = TargetParent
+UI.ResetOnSpawn = false
+ 
+MainButton.Name = "ToggleFB"
+MainButton.Parent = UI
+MainButton.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MainButton.BorderSizePixel = 0
+MainButton.Position = UDim2.new(0.5, -60, 0.5, -25)
+MainButton.Size = UDim2.new(0, 120, 0, 45)
+MainButton.Font = Enum.Font.GothamBold
+MainButton.Text = "FULLBRIGHT"
+MainButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MainButton.TextSize = 14
+MainButton.AutoButtonColor = true
+MainButton.ClipsDescendants = true
+ 
+RoundedCorner.CornerRadius = UDim.new(0, 10)
+RoundedCorner.Parent = MainButton
+ 
+local Active = false
+local Defaults = {
+	B = Lighting.Brightness,
+	T = Lighting.ClockTime,
+	A = Lighting.Ambient,
+	OA = Lighting.OutdoorAmbient,
+	F = Lighting.FogEnd
+}
+ 
+local function SetLighting(state)
+	if state then
+		Lighting.Brightness = 2
+		Lighting.ClockTime = 14
+		Lighting.Ambient = Color3.fromRGB(255, 255, 255)
+		Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+		Lighting.FogEnd = 1e5
+		MainButton.TextColor3 = Color3.fromRGB(85, 255, 127)
+	else
+		Lighting.Brightness = Defaults.B
+		Lighting.ClockTime = Defaults.T
+		Lighting.Ambient = Defaults.A
+		Lighting.OutdoorAmbient = Defaults.OA
+		Lighting.FogEnd = Defaults.F
+		MainButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	end
+end
+ 
+MainButton.MouseButton1Click:Connect(function()
+	Active = not Active
+	MainButton:TweenSize(UDim2.new(0, 115, 0, 40), "Out", "Quad", 0.1, true)
+	task.wait(0.1)
+	MainButton:TweenSize(UDim2.new(0, 120, 0, 45), "Out", "Quad", 0.1, true)
+	SetLighting(Active)
+end)
+ 
+local Dragging, DragInput, DragStart, StartPos
+ 
+MainButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		Dragging = true
+		DragStart = input.Position
+		StartPos = MainButton.Position
+ 
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				Dragging = false
+			end
+		end)
+	end
+end)
+ 
+MainButton.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		DragInput = input
+	end
+end)
+ 
+UIS.InputChanged:Connect(function(input)
+	if input == DragInput and Dragging then
+		local Delta = input.Position - DragStart
+		MainButton.Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + Delta.X, StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y)
+	end
+end)
