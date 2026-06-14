@@ -104,7 +104,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   AddButton(Tab6o, {
      Name = "fullbright toggle gui",
     Callback = function()
-	  loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-invisible-gui-deobfuscated-67857"))()
+	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Fullbright"))()
   end
   })
 
