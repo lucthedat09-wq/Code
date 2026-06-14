@@ -1,0 +1,178 @@
+local Pl=game:GetService("Players")
+local RS=game:GetService("RunService")
+local CG=game:GetService("CoreGui")
+local cam=workspace.CurrentCamera
+local lp=Pl.LocalPlayer
+local C={AL=false,AR=200,AS=2,AT=true,AF=120,AW=false,HO=false,HS=5,HT=true,HA=false,EO=false,EC=true,EI=true,ET=true}
+local curT=nil
+local espO={}
+local function gc(p)return p and p.Character end
+local function gr(c)return c and c:FindFirstChild("HumanoidRootPart")end
+local function gh(c)return c and c:FindFirstChild("Head")end
+local function ghu(c)return c and c:FindFirstChildOfClass("Humanoid")end
+local function alive(p)local h=ghu(gc(p))return h and h.Health>0 end
+local function team(p)return lp.Team~=nil and p.Team~=nil and p.Team==lp.Team end
+local function sd(pos)
+    local sp,on=cam:WorldToViewportPoint(pos)
+    if not on then return math.huge end
+    local c=cam.ViewportSize/2
+    return((sp.X-c.X)^2+(sp.Y-c.Y)^2)^0.5
+end
+local function vis(tc,h)
+    if not C.AW then return true end
+    local rp=RaycastParams.new();rp.FilterDescendantsInstances={lp.Character};rp.FilterType=Enum.RaycastFilterType.Exclude
+    local r=workspace:Raycast(cam.CFrame.Position,h.Position-cam.CFrame.Position,rp)
+    return r~=nil and r.Instance:IsDescendantOf(tc)
+end
+local function getT()
+    local myR=gr(gc(lp))if not myR then return nil end
+    local best,bd=nil,math.huge
+    for _,p in ipairs(Pl:GetPlayers())do
+        if p~=lp and not(C.AT and team(p))and alive(p)then
+            local c=gc(p);local h=gh(c)or gr(c)
+            if h then
+                local d3=(myR.Position-h.Position).Magnitude
+                if d3<=C.AR then
+                    local d2=sd(h.Position)
+                    if d2<=C.AF and d2<bd and vis(c,h)then
+                        bd=d2;best={p=p,h=h,c=c,pos=h.Position,d=d3}
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+local HBC=nil;local HBK={}
+local BP={"HumanoidRootPart","Head","UpperTorso","LowerTorso","Torso","LeftUpperArm","LeftLowerArm","LeftHand","RightUpperArm","RightLowerArm","RightHand","LeftUpperLeg","LeftLowerLeg","LeftFoot","RightUpperLeg","RightLowerLeg","RightFoot","Left Arm","Right Arm","Left Leg","Right Leg"}
+local function expC(c)
+    if not c then return end
+    local sz=C.HS
+    for _,n in ipairs(BP)do local v=c:FindFirstChild(n)if v and v:IsA("BasePart")then if not HBK[v]then HBK[v]=v.Size end;pcall(function()v.Size=Vector3.new(sz,sz,sz);v.Transparency=0.6;v.CanCollide=false end)end end
+    if C.HA then for _,v in ipairs(c:GetChildren())do if v:IsA("BasePart")and not HBK[v]then HBK[v]=v.Size;pcall(function()v.Size=Vector3.new(sz,sz,sz);v.Transparency=0.6;v.CanCollide=false end)end end end
+end
+local function restHB()for pt,s in pairs(HBK)do pcall(function()pt.Size=s;pt.Transparency=0;pt.CanCollide=true end)end;HBK={} end
+local function startHB()if HBC then HBC:Disconnect()end;HBC=RS.Heartbeat:Connect(function()if not C.HO then return end;for _,p in ipairs(Pl:GetPlayers())do if p~=lp and not(C.HT and team(p))and alive(p)then expC(gc(p))end end end)end
+local function stopHB()C.HO=false;if HBC then HBC:Disconnect();HBC=nil end;restHB()end
+local EF=Instance.new("Folder");EF.Name="DHubESP";EF.Parent=CG
+local function rmE(p)local e=espO[p]if not e then return end;if e.hl then pcall(function()e.hl:Destroy()end)end;if e.bb then pcall(function()e.bb:Destroy()end)end;espO[p]=nil end
+local function clrE()for p in pairs(espO)do rmE(p)end end
+local function upE()
+    if not C.EO then clrE();return end
+    for _,p in ipairs(Pl:GetPlayers())do
+        if p~=lp and not(C.ET and team(p))and alive(p)then
+            local c=gc(p);local hrp=gr(c);local hu=ghu(c)
+            if not hrp or not hu then return end
+            local mr=gr(gc(lp));local dist=mr and math.floor((mr.Position-hrp.Position).Magnitude)or 0
+            local col=dist<=50 and Color3.fromRGB(255,60,60)or Color3.fromRGB(255,200,50)
+            local e=espO[p]
+            if not e then
+                e={}
+                if C.EC then local hl=Instance.new("Highlight");hl.Adornee=c;hl.FillColor=col;hl.OutlineColor=Color3.fromRGB(255,255,255);hl.FillTransparency=0.4;hl.OutlineTransparency=0;hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop;hl.Parent=EF;e.hl=hl end
+                if C.EI then local bb=Instance.new("BillboardGui");bb.Adornee=hrp;bb.Size=UDim2.new(0,150,0,32);bb.StudsOffset=Vector3.new(0,3,0);bb.AlwaysOnTop=true;bb.Parent=EF;local tl=Instance.new("TextLabel");tl.Size=UDim2.new(1,0,1,0);tl.BackgroundTransparency=1;tl.Font=Enum.Font.GothamBold;tl.TextSize=11;tl.TextStrokeTransparency=0;tl.Parent=bb;e.bb=bb;e.tl=tl end
+                espO[p]=e
+            end
+            if e.tl then e.tl.Text=p.Name.." | "..math.floor(hu.Health).."hp | "..dist.."m";e.tl.TextColor3=col end
+            if e.hl then e.hl.FillColor=col;e.hl.Adornee=c end
+        else if espO[p]then rmE(p)end end
+    end
+    for p in pairs(espO)do if not p.Parent or not alive(p)then rmE(p)end end
+end
+local function rmSFX()local function m(r)for _,v in ipairs(r:GetDescendants())do if v:IsA("Sound")then pcall(function()v:Stop();v.Volume=0 end)end end end;m(workspace);m(game:GetService("SoundService"));workspace.DescendantAdded:Connect(function(d)if d:IsA("Sound")then pcall(function()d.Volume=0 end)end end)end
+local function rmP()local PT={"ParticleEmitter","Smoke","Fire","Sparkles","Beam","Trail"};local function d(v)for _,t in ipairs(PT)do if v:IsA(t)then pcall(function()v.Enabled=false end)end end end;for _,v in ipairs(workspace:GetDescendants())do d(v)end;workspace.DescendantAdded:Connect(d)end
+local function rmS()pcall(function()local L=game:GetService("Lighting");L.GlobalShadows=false;L.FogEnd=100000 end);for _,v in ipairs(workspace:GetDescendants())do if v:IsA("BasePart")then pcall(function()v.CastShadow=false end)end end end
+local function loGfx()pcall(function()settings().Rendering.QualityLevel=1 end);for _,v in ipairs(game:GetService("Lighting"):GetDescendants())do if v:IsA("PostEffect")or v:IsA("Sky")or v:IsA("Atmosphere")then pcall(function()v.Enabled=false end)end end end
+local function rmTx()for _,v in ipairs(workspace:GetDescendants())do if v:IsA("Decal")or v:IsA("Texture")then pcall(function()v.Transparency=1 end)end;if v:IsA("BasePart")then pcall(function()v.Material=Enum.Material.SmoothPlastic end)end end end
+local CB=Color3.fromRGB
+local BG=CB(8,14,28);local PN=CB(12,20,40);local BR=CB(16,28,55);local SI=CB(10,17,34)
+local AC=CB(56,180,230);local A2=CB(30,120,180);local GN=CB(60,220,120);local RD=CB(220,60,60)
+local OR=CB(220,140,40);local SB=CB(120,160,200);local DM=CB(60,80,110)
+local sg=Instance.new("ScreenGui");sg.Name="DHubFPS";sg.ResetOnSpawn=false;sg.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
+if syn and syn.protect_gui then syn.protect_gui(sg)elseif protect_gui then protect_gui(sg)end;sg.Parent=CG
+local tB=Instance.new("TextButton");tB.Size=UDim2.new(0,56,0,56);tB.Position=UDim2.new(0,12,0.5,-28);tB.BackgroundColor3=BG;tB.BorderSizePixel=0;tB.Text="";tB.Active=true;tB.Draggable=true;tB.ZIndex=10;tB.Parent=sg
+Instance.new("UICorner",tB).CornerRadius=UDim.new(0,14)
+local tS=Instance.new("UIStroke");tS.Color=AC;tS.Thickness=2;tS.Parent=tB
+Instance.new("TextLabel",tB).Text="D"  local _tbl=tB:FindFirstChild("TextLabel");_tbl.Size=UDim2.new(1,0,0.55,0);_tbl.Position=UDim2.new(0,0,0.08,0);_tbl.BackgroundTransparency=1;_tbl.TextColor3=AC;_tbl.Font=Enum.Font.GothamBold;_tbl.TextSize=24;_tbl.ZIndex=11
+local _fps=Instance.new("TextLabel",tB);_fps.Size=UDim2.new(1,0,0.32,0);_fps.Position=UDim2.new(0,0,0.66,0);_fps.BackgroundTransparency=1;_fps.Text="FPS";_fps.TextColor3=SB;_fps.Font=Enum.Font.GothamBold;_fps.TextSize=8;_fps.ZIndex=11
+local dot=Instance.new("Frame",tB);dot.Size=UDim2.new(0,7,0,7);dot.Position=UDim2.new(1,-9,0,4);dot.BackgroundColor3=CB(80,80,80);dot.BorderSizePixel=0;dot.ZIndex=12;Instance.new("UICorner",dot).CornerRadius=UDim.new(1,0)
+local mF=Instance.new("Frame");mF.Size=UDim2.new(0,280,0,340);mF.Position=UDim2.new(0,76,0.5,-170);mF.BackgroundColor3=BG;mF.BorderSizePixel=0;mF.Active=true;mF.Draggable=true;mF.Visible=false;mF.ZIndex=5;mF.Parent=sg
+Instance.new("UICorner",mF).CornerRadius=UDim.new(0,14);Instance.new("UIStroke",mF).Color=A2
+local tBr=Instance.new("Frame");tBr.Size=UDim2.new(1,0,0,40);tBr.BackgroundColor3=BR;tBr.BorderSizePixel=0;tBr.Parent=mF;Instance.new("UICorner",tBr).CornerRadius=UDim.new(0,14)
+local tN=Instance.new("TextLabel");tN.Size=UDim2.new(1,-40,1,0);tN.Position=UDim2.new(0,10,0,0);tN.BackgroundTransparency=1;tN.Text="D-HUB  FPS Pro";tN.TextColor3=AC;tN.Font=Enum.Font.GothamBold;tN.TextSize=13;tN.TextXAlignment=Enum.TextXAlignment.Left;tN.Parent=tBr
+local cB=Instance.new("TextButton");cB.Size=UDim2.new(0,24,0,24);cB.Position=UDim2.new(1,-30,0.5,-12);cB.BackgroundColor3=RD;cB.BorderSizePixel=0;cB.Text="x";cB.TextColor3=CB(255,255,255);cB.Font=Enum.Font.GothamBold;cB.TextSize=11;cB.Parent=tBr;Instance.new("UICorner",cB).CornerRadius=UDim.new(0,6)
+local sb=Instance.new("Frame");sb.Size=UDim2.new(0,80,1,-42);sb.Position=UDim2.new(0,0,0,42);sb.BackgroundColor3=SI;sb.BorderSizePixel=0;sb.Parent=mF;Instance.new("UICorner",sb).CornerRadius=UDim.new(0,14)
+local sL=Instance.new("UIListLayout");sL.FillDirection=Enum.FillDirection.Vertical;sL.HorizontalAlignment=Enum.HorizontalAlignment.Center;sL.Padding=UDim.new(0,2);sL.Parent=sb;local sP=Instance.new("UIPadding");sP.PaddingTop=UDim.new(0,8);sP.PaddingBottom=UDim.new(0,8);sP.Parent=sb
+local ct=Instance.new("Frame");ct.Size=UDim2.new(0,198,1,-44);ct.Position=UDim2.new(0,82,0,42);ct.BackgroundTransparency=1;ct.BorderSizePixel=0;ct.Parent=mF
+local st=Instance.new("TextLabel");st.Size=UDim2.new(0,188,0,11);st.Position=UDim2.new(0,82,1,-14);st.BackgroundTransparency=1;st.Text="Ready";st.TextColor3=DM;st.Font=Enum.Font.Gotham;st.TextSize=9;st.TextXAlignment=Enum.TextXAlignment.Left;st.Parent=mF
+local mo=false
+tB.MouseButton1Click:Connect(function()mo=not mo;mF.Visible=mo;tS.Color=mo and AC or A2;dot.BackgroundColor3=mo and GN or CB(80,80,80)end)
+cB.MouseButton1Click:Connect(function()mo=false;mF.Visible=false;tS.Color=A2;dot.BackgroundColor3=CB(80,80,80)end)
+local TABS={}
+local function shT(n)for k,t in pairs(TABS)do local a=(k==n);t.f.Visible=a;t.b.BackgroundColor3=a and AC or PN;t.b.TextColor3=a and CB(10,10,20)or SB end end
+local function mkT(n,l)
+    local b=Instance.new("TextButton");b.Size=UDim2.new(1,-8,0,55);b.BackgroundColor3=PN;b.BorderSizePixel=0;b.Text=l;b.TextColor3=SB;b.Font=Enum.Font.GothamBold;b.TextSize=10;b.Parent=sb;Instance.new("UICorner",b).CornerRadius=UDim.new(0,9)
+    local f=Instance.new("ScrollingFrame");f.Size=UDim2.new(1,0,1,0);f.BackgroundTransparency=1;f.BorderSizePixel=0;f.ScrollBarThickness=3;f.ScrollBarImageColor3=A2;f.CanvasSize=UDim2.new(0,0,0,0);f.AutomaticCanvasSize=Enum.AutomaticSize.Y;f.Visible=false;f.Parent=ct
+    Instance.new("UIListLayout",f).Padding=UDim.new(0,4);local pd=Instance.new("UIPadding");pd.PaddingTop=UDim.new(0,6);pd.PaddingLeft=UDim.new(0,4);pd.PaddingRight=UDim.new(0,4);pd.Parent=f
+    TABS[n]={b=b,f=f};b.MouseButton1Click:Connect(function()shT(n)end);return f
+end
+local function Tg(p,t,c,on,off)
+    local b=Instance.new("TextButton");b.Size=UDim2.new(1,-6,0,27);b.BackgroundColor3=PN;b.BorderSizePixel=0;b.Text=t..": OFF";b.TextColor3=SB;b.Font=Enum.Font.GothamBold;b.TextSize=11;b.Parent=p;Instance.new("UICorner",b).CornerRadius=UDim.new(0,7)
+    local s=false;b.MouseButton1Click:Connect(function()s=not s;b.Text=t..": "..(s and"ON"or"OFF");b.BackgroundColor3=s and c or PN;b.TextColor3=s and CB(255,255,255)or SB;if s then if on then on()end else if off then off()end end end)
+end
+local function Ip(p,l,d,cb)
+    local r=Instance.new("Frame");r.Size=UDim2.new(1,-6,0,24);r.BackgroundColor3=PN;r.BorderSizePixel=0;r.Parent=p;Instance.new("UICorner",r).CornerRadius=UDim.new(0,6)
+    local ll=Instance.new("TextLabel");ll.Size=UDim2.new(0.6,0,1,0);ll.BackgroundTransparency=1;ll.Text=l;ll.TextColor3=SB;ll.Font=Enum.Font.Gotham;ll.TextSize=9;ll.TextXAlignment=Enum.TextXAlignment.Left;ll.Position=UDim2.new(0,5,0,0);ll.Parent=r
+    local tb=Instance.new("TextBox");tb.Size=UDim2.new(0.36,-4,0.72,0);tb.Position=UDim2.new(0.62,0,0.14,0);tb.BackgroundColor3=BR;tb.BorderSizePixel=0;tb.Text=tostring(d);tb.TextColor3=AC;tb.Font=Enum.Font.Gotham;tb.TextSize=9;tb.Parent=r;Instance.new("UICorner",tb).CornerRadius=UDim.new(0,4)
+    tb.FocusLost:Connect(function()local n=tonumber(tb.Text)if n then cb(n)end end)
+end
+local function Nt(p,t)local l=Instance.new("TextLabel");l.Size=UDim2.new(1,-6,0,13);l.BackgroundTransparency=1;l.Text=t;l.TextColor3=DM;l.Font=Enum.Font.Gotham;l.TextSize=9;l.TextXAlignment=Enum.TextXAlignment.Left;l.Parent=p end
+local function At(p,t,c,fn)
+    local b=Instance.new("TextButton");b.Size=UDim2.new(1,-6,0,27);b.BackgroundColor3=c;b.BorderSizePixel=0;b.Text=t;b.TextColor3=CB(255,255,255);b.Font=Enum.Font.GothamBold;b.TextSize=11;b.Parent=p;Instance.new("UICorner",b).CornerRadius=UDim.new(0,7)
+    b.MouseButton1Click:Connect(function()if fn then fn()end end)
+end
+local fA=mkT("A","AIM\nLOCK");local fH=mkT("H","HIT\nBOX");local fE=mkT("E","E S P");local fO=mkT("O","O P T")
+-- FOV Circle - PlayerGui rieng, IgnoreGuiInset=true
+local fSG=Instance.new("ScreenGui");fSG.Name="DHubFOV";fSG.ResetOnSpawn=false;fSG.IgnoreGuiInset=true;fSG.DisplayOrder=999;fSG.Parent=lp:WaitForChild("PlayerGui")
+local fvF=Instance.new("Frame");fvF.AnchorPoint=Vector2.new(0.5,0.5);fvF.Position=UDim2.new(0.5,0,0.5,0);fvF.Size=UDim2.new(0,C.AF*2,0,C.AF*2);fvF.BackgroundTransparency=1;fvF.BorderSizePixel=0;fvF.Visible=false;fvF.Parent=fSG;Instance.new("UICorner",fvF).CornerRadius=UDim.new(1,0)
+local fvS=Instance.new("UIStroke");fvS.Color=CB(220,220,220);fvS.Thickness=2;fvS.Parent=fvF
+local tBB=Instance.new("BillboardGui");tBB.Size=UDim2.new(0,14,0,14);tBB.AlwaysOnTop=true;tBB.Enabled=false;tBB.Parent=fSG
+local tDF=Instance.new("Frame");tDF.Size=UDim2.new(1,0,1,0);tDF.BackgroundColor3=CB(255,50,50);tDF.BorderSizePixel=0;tDF.Parent=tBB;Instance.new("UICorner",tDF).CornerRadius=UDim.new(1,0);Instance.new("UIStroke",tDF).Color=CB(255,255,255)
+Tg(fA,"Aim Lock",AC,function()C.AL=true;fvF.Visible=true;fvS.Color=CB(220,220,220)end,function()C.AL=false;curT=nil;fvF.Visible=false;tBB.Enabled=false end)
+Tg(fA,"Team Check",GN,function()C.AT=true end,function()C.AT=false end)
+Nt(fA,"* Bat neu game co team (neu co)")
+Tg(fA,"Wall Check",GN,function()C.AW=true end,function()C.AW=false end)
+Ip(fA,"Range (studs)",200,function(n)C.AR=math.clamp(n,10,2000)end)
+Ip(fA,"FOV (px)",120,function(n)C.AF=math.clamp(n,20,600);fvF.Size=UDim2.new(0,n*2,0,n*2)end)
+Ip(fA,"Smooth (0=snap)",2,function(n)C.AS=math.clamp(n,0,20)end)
+Tg(fH,"Hitbox",OR,function()C.HO=true;startHB()end,function()stopHB()end)
+Tg(fH,"Team Check",GN,function()C.HT=true end,function()C.HT=false end)
+Nt(fH,"* Bat neu game co team (neu co)")
+Tg(fH,"All Body Parts",OR,function()C.HA=true end,function()C.HA=false end)
+Nt(fH,"* Universal R15/R6/custom")
+Ip(fH,"Size",5,function(n)C.HS=math.clamp(n,1,150);HBK={}end)
+At(fH,"Restore Hitbox",CB(180,60,60),function()restHB()end)
+Tg(fE,"ESP",RD,function()C.EO=true end,function()C.EO=false;clrE()end)
+Tg(fE,"Team Check",GN,function()C.ET=true end,function()C.ET=false end)
+Nt(fE,"* Bat neu game co team (neu co)")
+Tg(fE,"Chams",RD,function()C.EC=true end,function()C.EC=false end)
+Tg(fE,"Info",RD,function()C.EI=true end,function()C.EI=false end)
+At(fO,"Remove SFX",CB(80,200,140),function()rmSFX()end)
+At(fO,"Remove Particles",CB(80,200,140),function()rmP()end)
+At(fO,"Remove Shadows",CB(80,200,140),function()rmS()end)
+At(fO,"Low Graphics Q1",CB(80,200,140),function()loGfx()end)
+At(fO,"Remove Textures",CB(80,200,140),function()rmTx()end)
+shT("A")
+RS:BindToRenderStep("DHubAim",Enum.RenderPriority.Camera.Value+1,function()
+    if not C.AL then tBB.Enabled=false;return end
+    local t=getT()
+    if not t then curT=nil;tBB.Enabled=false;fvS.Color=CB(220,220,220);fvS.Thickness=2;return end
+    curT=t;fvS.Color=CB(255,50,50);fvS.Thickness=3;tBB.Adornee=t.h;tBB.Enabled=true
+    local s=C.AS
+    if s<=0 then cam.CFrame=CFrame.new(cam.CFrame.Position,t.pos)
+    else cam.CFrame=cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position,t.pos),1/(s+1))end
+end)
+RS.RenderStepped:Connect(function()if C.EO then upE()end end)
+task.spawn(function()while task.wait(0.2)do local t=curT;st.Text=(C.AL and"[FOV ON]"or"[off]").." | "..(t and">> "..t.p.Name.." "..math.floor(t.d).."m"or"no target")end end)
+lp.CharacterAdded:Connect(function()curT=nil;clrE();HBK={};fvF.Visible=false;tBB.Enabled=false end)
+Pl.PlayerRemoving:Connect(function(p)rmE(p);if curT and curT.p==p then curT=nil end end)
+print("[D-HUB] FPS Pro loaded!")
