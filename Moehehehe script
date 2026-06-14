@@ -44,13 +44,6 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   end
   })
 
-  AddButton(Tab2o, {
-     Name = "Aimbot v4(best script🤑🤑",
-    Callback = function()
-	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Aimbot%20v4"))()
-  end
-  })
-  
   AddButton(Tab5o, {
      Name = "emote",
     Callback = function()
@@ -97,5 +90,12 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
      Name = "invisible gui",
     Callback = function()
 	  loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-invisible-gui-deobfuscated-67857"))()
+  end
+  })
+
+  AddButton(Tab2o, {
+     Name = "Aimbot v4(best script🤑🤑",
+    Callback = function()
+	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Aimbot%20v4"))()
   end
   })
