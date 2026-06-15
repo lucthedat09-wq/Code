@@ -2,7 +2,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
 
        local Window = MakeWindow({
          Hub = {
-         Title = "moehehehe",
+         Title = "moehehe hub",
          Animation = "Loading..."
          },
         Key = {
@@ -21,7 +21,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   })
 
        MinimizeButton({
-       Image = "https://create.roblox.com/dashboard/creations/experiences/6185251174/monetization/developer-products",
+       Image = "https://www.roblox.com/asset/?id=106212215897634",
        Size = {60, 60},
        Color = Color3.fromRGB(10, 10, 10),
        Corner = true,
@@ -35,8 +35,10 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
      local Tab3o = MakeTab({Name = "the strongest battleground"})
      local Tab4o = MakeTab({Name = "jujutsu shenanigans"})
      local Tab5o = MakeTab({Name = "evade"})
-     local Tab6o = MakeTab({Name = "others"})
-     
+     local Tab6o = MakeTab({Name = "piano songs"})
+     local Tab7o = MakeTab({Name = "99 night"})
+     local Tab8o = MakeTab({Name = "others"})
+
 ------- BUTTON
   AddButton(Tab1o, {
      Name = "FPS Boots",
@@ -45,7 +47,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   end
   })
 
-  AddButton(Tab6o, {
+  AddButton(Tab8o, {
      Name = "emote",
     Callback = function()
 	  loadstring(game:HttpGet("https://raw.githubusercontent.com/7yd7/Hub/refs//heads/Branch/GUIS/Emotes.lua"))()
@@ -80,14 +82,14 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   end
   })
   
-  AddButton(Tab6o, {
+  AddButton(Tab8o, {
      Name = "Fly gui v3",
     Callback = function()
 	  loadstring(game:HttpGet("https://raw.githubusercontent.com/XNEOFF/FlyGuiV3/main/FlyGuiV3.txt"))()
   end
   })
   
-  AddButton(Tab6o, {
+  AddButton(Tab8o, {
      Name = "invisible gui",
     Callback = function()
 	  loadstring(game:HttpGet("https://rawscripts.net/raw/Universal-Script-invisible-gui-deobfuscated-67857"))()
@@ -101,7 +103,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   end
   })
 
-  AddButton(Tab6o, {
+  AddButton(Tab8o, {
      Name = "fullbright toggle gui",
     Callback = function()
 	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Fullbright"))()
