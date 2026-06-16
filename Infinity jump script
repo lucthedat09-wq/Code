@@ -1,0 +1,154 @@
+-- ========= SERVICES =========
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local StarterGui = game:GetService("StarterGui")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local GuiService = game:GetService("GuiService")
+local Debris = game:GetService("Debris")
+
+-- ========= PLAYER =========
+local player = Players.LocalPlayer
+
+-- ========= POWER SETTINGS =========
+-- Super Jump
+local superJumpEnabled = false
+local jumpVelocityPower = 1000
+
+-- Infinite Jump
+local infiniteJumpEnabled = false
+
+-- ========= GUI & NOTIFIKASI =========
+local function notify(title, text, duration)
+    duration = duration or 3
+    pcall(function() 
+        StarterGui:SetCore("ChatMakeSystemMessage", { 
+            Text = "[" .. title .. "] " .. text, 
+            Color = Color3.new(1, 1, 1), 
+            Font = Enum.Font.SourceSansBold 
+        }) 
+    end)
+end
+
+local function createGuiTemplate(params)
+    local title = params.title or "GUI Tool"
+    -- UKURAN GUI DIKECILKAN LAGI KARENA FITUR BERKURANG
+    local size = params.size or UDim2.new(0, 250, 0, 200) 
+    local position = params.position or UDim2.new(0, 10, 0.5, -100) -- Posisi disesuaikan
+    local onCloseCallback = params.onClose or function() end
+    local oldGui = CoreGui:FindFirstChild("UltimatePowerUI")
+    if oldGui then oldGui:Destroy() end
+    local screenGui = Instance.new("ScreenGui"); screenGui.Name = "UltimatePowerUI"; screenGui.Parent = CoreGui; screenGui.ResetOnSpawn = false; screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; screenGui.IgnoreGuiInset = true
+    if GuiService:IsTenFootInterface() then screenGui.Parent = player.PlayerGui end
+    local mainFrame = Instance.new("Frame"); mainFrame.Name = "MainFrame"; mainFrame.Parent = screenGui; mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35); mainFrame.BorderSizePixel = 0; mainFrame.Size = size; mainFrame.Position = position; mainFrame.Active = true
+    local titleBar = Instance.new("TextLabel"); titleBar.Name = "TitleBar"; titleBar.Parent = mainFrame; titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25); titleBar.BorderSizePixel = 0; titleBar.Size = UDim2.new(1, 0, 0, 30); titleBar.Font = Enum.Font.GothamBold; titleBar.Text = title; titleBar.TextColor3 = Color3.fromRGB(255, 255, 255); titleBar.TextSize = 14.000; titleBar.Active = true
+    local minimizeButton = Instance.new("TextButton"); minimizeButton.Name = "MinimizeButton"; minimizeButton.Parent = titleBar; minimizeButton.BackgroundTransparency = 1; minimizeButton.Position = UDim2.new(1, -50, 0, 0); minimizeButton.Size = UDim2.new(0, 25, 1, 0); minimizeButton.Font = Enum.Font.GothamBold; minimizeButton.Text = "▼"; minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255); minimizeButton.TextSize = 12.000
+    local closeButton = Instance.new("TextButton"); closeButton.Name = "CloseButton"; closeButton.Parent = titleBar; closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0); closeButton.BorderSizePixel = 0; closeButton.Position = UDim2.new(1, -25, 0, 0); closeButton.Size = UDim2.new(0, 25, 1, 0); closeButton.Font = Enum.Font.GothamBold; closeButton.Text = "X"; closeButton.TextColor3 = Color3.fromRGB(255, 255, 255); closeButton.TextSize = 12.000
+    local contentFrame = Instance.new("Frame"); contentFrame.Name = "ContentFrame"; contentFrame.Parent = mainFrame; contentFrame.BackgroundTransparency = 1; contentFrame.Position = UDim2.new(0, 0, 0, 30); contentFrame.Size = UDim2.new(1, 0, 1, -30)
+    local isMinimized = false; local originalSize = mainFrame.Size; local minimizedSize = UDim2.new(0, size.X.Offset, 0, 30); local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local dragging = false; local dragStart, startPos
+    titleBar.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = mainFrame.Position; input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end) end end)
+    UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
+    minimizeButton.MouseButton1Click:Connect(function() isMinimized = not isMinimized; if isMinimized then minimizeButton.Text = "▲"; contentFrame.Visible = false; TweenService:Create(mainFrame, tweenInfo, {Size = minimizedSize}):Play() else minimizeButton.Text = "▼"; local tween = TweenService:Create(mainFrame, tweenInfo, {Size = originalSize}); tween:Play(); tween.Completed:Connect(function() contentFrame.Visible = true end) end end)
+    closeButton.MouseButton1Click:Connect(function() onCloseCallback(); screenGui:Destroy() end)
+    return { ScreenGui = screenGui, MainFrame = mainFrame, TitleBar = titleBar, ContentFrame = contentFrame, MinimizeButton = minimizeButton, CloseButton = closeButton }
+end
+
+-- ========= CORE FUNCTIONS =========
+local function setupCharacter(char)
+    local humanoid = char:WaitForChild("Humanoid")
+    local rootPart = char:WaitForChild("HumanoidRootPart")
+
+    -- Handle Jump
+    local function handleJump()
+        if superJumpEnabled then
+            local velocity = Instance.new("BodyVelocity")
+            velocity.MaxForce = Vector3.new(0, math.huge, 0)
+            velocity.P = 5000
+            velocity.Velocity = Vector3.new(0, jumpVelocityPower, 0)
+            velocity.Parent = rootPart
+            Debris:AddItem(velocity, 0.2)
+        end
+
+        if infiniteJumpEnabled then
+            for i = 1, 3 do
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                task.wait()
+            end
+        end
+    end
+    
+    -- Connect Events
+    UserInputService.JumpRequest:Connect(handleJump)
+
+    notify("System", "Script terhubung ke karakter baru.", 2)
+end
+
+-- ========= INISIALISASI GUI & EVENT =========
+local myGui = createGuiTemplate({ 
+    title = "script power🤑", 
+    size = UDim2.new(0, 250, 0, 200), -- UKURAN BARU YANG LEBIH KECIL
+    onClose = function() 
+        superJumpEnabled = false
+        infiniteJumpEnabled = false
+        notify("System", "Script dihentikan.", 3)
+    end 
+})
+
+-- --- GUI ELEMENTS ---
+local content = myGui.ContentFrame
+local yPos = 5 -- Posisi Y awal
+
+-- Super Jump Section
+local sjLabel = Instance.new("TextLabel"); sjLabel.Name = "SJLabel"; sjLabel.Parent = content; sjLabel.BackgroundTransparency = 1; sjLabel.Size = UDim2.new(1, -10, 0, 18); sjLabel.Position = UDim2.new(0, 5, 0, yPos); sjLabel.Font = Enum.Font.GothamBold; sjLabel.Text = "🚀 Super Jump"; sjLabel.TextColor3 = Color3.fromRGB(255, 255, 255); sjLabel.TextSize = 14
+yPos = yPos + 20
+local sjButton = Instance.new("TextButton"); sjButton.Name = "SJButton"; sjButton.Parent = content; sjButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50); sjButton.BorderSizePixel = 0; sjButton.Size = UDim2.new(1, -10, 0, 30); sjButton.Position = UDim2.new(0, 5, 0, yPos); sjButton.Font = Enum.Font.GothamBold; sjButton.Text = "Enable"; sjButton.TextColor3 = Color3.fromRGB(255, 255, 255); sjButton.TextSize = 14; Instance.new("UICorner", sjButton).CornerRadius = UDim.new(0, 4)
+yPos = yPos + 35
+local sjPowerBox = Instance.new("TextBox"); sjPowerBox.Name = "SJPowerBox"; sjPowerBox.Parent = content; sjPowerBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50); sjPowerBox.BorderSizePixel = 0; sjPowerBox.Size = UDim2.new(0.6, -5, 0, 22); sjPowerBox.Position = UDim2.new(0, 5, 0, yPos); sjPowerBox.Font = Enum.Font.Gotham; sjPowerBox.PlaceholderText = "Jump Power"; sjPowerBox.Text = tostring(jumpVelocityPower); sjPowerBox.TextColor3 = Color3.fromRGB(255, 255, 255); sjPowerBox.TextSize = 12; Instance.new("UICorner", sjPowerBox).CornerRadius = UDim.new(0, 4)
+local sjApplyButton = Instance.new("TextButton"); sjApplyButton.Name = "SJApplyButton"; sjApplyButton.Parent = content; sjApplyButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255); sjApplyButton.BorderSizePixel = 0; sjApplyButton.Size = UDim2.new(0.4, -5, 0, 22); sjApplyButton.Position = UDim2.new(0.6, 0, 0, yPos); sjApplyButton.Font = Enum.Font.GothamBold; sjApplyButton.Text = "Apply"; sjApplyButton.TextColor3 = Color3.fromRGB(255, 255, 255); sjApplyButton.TextSize = 12; Instance.new("UICorner", sjApplyButton).CornerRadius = UDim.new(0, 4)
+yPos = yPos + 27
+
+-- Power Features Section
+local pfLabel = Instance.new("TextLabel"); pfLabel.Name = "PFLabel"; pfLabel.Parent = content; pfLabel.BackgroundTransparency = 1; pfLabel.Size = UDim2.new(1, -10, 0, 18); pfLabel.Position = UDim2.new(0, 5, 0, yPos); pfLabel.Font = Enum.Font.GothamBold; pfLabel.Text = "⚡ Power Features"; pfLabel.TextColor3 = Color3.fromRGB(255, 255, 255); pfLabel.TextSize = 14
+yPos = yPos + 20
+local ijButton = Instance.new("TextButton"); ijButton.Name = "IJButton"; ijButton.Parent = content; ijButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50); ijButton.BorderSizePixel = 0; ijButton.Size = UDim2.new(1, -10, 0, 28); ijButton.Position = UDim2.new(0, 5, 0, yPos); ijButton.Font = Enum.Font.GothamBold; ijButton.Text = "Infinite Jump: OFF"; ijButton.TextColor3 = Color3.fromRGB(255, 255, 255); ijButton.TextSize = 13; Instance.new("UICorner", ijButton).CornerRadius = UDim.new(0, 4)
+
+
+-- --- GUI EVENT HANDLERS ---
+sjButton.MouseButton1Click:Connect(function()
+    superJumpEnabled = not superJumpEnabled
+    if superJumpEnabled then
+        sjButton.Text = "Disable"; sjButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+    else
+        sjButton.Text = "Enable"; sjButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    end
+end)
+sjApplyButton.MouseButton1Click:Connect(function()
+    local newPower = tonumber(sjPowerBox.Text)
+    if newPower and newPower > 0 then
+        jumpVelocityPower = newPower
+        notify("Super Jump", "Power diubah ke " .. tostring(jumpVelocityPower))
+    else
+        notify("Error", "Masukkan angka yang valid")
+        sjPowerBox.Text = tostring(jumpVelocityPower)
+    end
+end)
+
+ijButton.MouseButton1Click:Connect(function()
+    infiniteJumpEnabled = not infiniteJumpEnabled
+    if infiniteJumpEnabled then
+        ijButton.Text = "Infinite Jump: ON"; ijButton.BackgroundColor3 = Color3.fromRGB(50, 255, 50)
+    else
+        ijButton.Text = "Infinite Jump: OFF"; ijButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    end
+end)
+
+
+-- ========= MEMULAI SEMUA =========
+player.CharacterAdded:Connect(setupCharacter)
+
+if player.Character then
+    setupCharacter(player.Character)
+end
+
+notify("System", "Ultimate Power Script dimuat!", 4)
