@@ -97,7 +97,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   })
 
   AddButton(Tab2o, {
-     Name = "Aimbot v4(best script🤑🤑",
+     Name = "Aimbot v4",
     Callback = function()
 	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Aimbot%20v4"))()
   end
@@ -121,5 +121,12 @@ AddButton(Tab8o, {
      Name = "infinity jump",
     Callback = function()
 	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Infinity%20jump%20script"))()
+  end
+  })
+
+AddButton(Tab8o, {
+     Name = "speed change",
+    Callback = function()
+	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Speed%20change"))()
   end
   })
