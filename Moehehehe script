@@ -127,6 +127,6 @@ AddButton(Tab8o, {
 AddButton(Tab8o, {
      Name = "speed change",
     Callback = function()
-	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Speed%20change"))()
+	  loadstring(game:HttpGet("https://raw.githubusercontent.com/Prexry/Fenx-X/main/speed.lua"))()
   end
   })
