@@ -1,0 +1,109 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local function createESP(player)
+    if player == LocalPlayer then return end
+    
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    -- === HEALTH BAR (dọc bên trái) ===
+    local billboardHealth = Instance.new("BillboardGui")
+    billboardHealth.Name = "HealthESP"
+    billboardHealth.Adornee = rootPart
+    billboardHealth.AlwaysOnTop = true
+    billboardHealth.Size = UDim2.new(0.4, 0, 6.5, 0)
+    billboardHealth.StudsOffset = Vector3.new(-3, 0.45, 0)
+    billboardHealth.LightInfluence = 0
+    billboardHealth.Parent = character
+    
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, 0, 1, 0)
+    bar.BackgroundColor3 = Color3.new(0, 1, 0)
+    bar.BorderSizePixel = 0
+    bar.Parent = billboardHealth
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0.12, 0)
+    label.Position = UDim2.new(0, 0, -0.15, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "100"
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextScaled = true
+    label.Font = Enum.Font.GothamBold
+    label.Parent = billboardHealth
+
+    -- === BOX ESP (hình chữ nhật bao quanh - đã nhỏ hơn) ===
+    local billboardBox = Instance.new("BillboardGui")
+    billboardBox.Name = "BoxESP"
+    billboardBox.Adornee = rootPart
+    billboardBox.AlwaysOnTop = true
+    billboardBox.Size = UDim2.new(4, 0, 6.5, 0)     -- Nhỏ hơn đáng kể
+    billboardBox.StudsOffset = Vector3.new(0, 0.5, 0)
+    billboardBox.LightInfluence = 0
+    billboardBox.Parent = character
+    
+    -- Tạo khung viền (4 cạnh)
+    local function createLine()
+        local line = Instance.new("Frame")
+        line.BackgroundColor3 = Color3.new(0, 1, 1)   -- Màu cyan
+        line.BorderSizePixel = 0
+        line.Parent = billboardBox
+        return line
+    end
+    
+    local top    = createLine()
+    local bottom = createLine()
+    local left   = createLine()
+    local right  = createLine()
+    
+    -- Kích thước viền mỏng
+    top.Size = UDim2.new(1, 0, 0, 2)
+    top.Position = UDim2.new(0, 0, 0, 0)
+    
+    bottom.Size = UDim2.new(1, 0, 0, 2)
+    bottom.Position = UDim2.new(0, 0, 1, -2)
+    
+    left.Size = UDim2.new(0, 2, 1, 0)
+    left.Position = UDim2.new(0, 0, 0, 0)
+    
+    right.Size = UDim2.new(0, 2, 1, 0)
+    right.Position = UDim2.new(1, -2, 0, 0)
+
+    -- Update thanh máu
+    local function updateHealth()
+        local health = humanoid.Health
+        local maxHealth = humanoid.MaxHealth
+        local healthPercent = health / maxHealth
+        
+        bar.Size = UDim2.new(1, 0, healthPercent, 0)
+        bar.Position = UDim2.new(0, 0, 1 - healthPercent, 0)
+        
+        label.Text = math.floor(health)
+        
+        if healthPercent > 0.6 then
+            bar.BackgroundColor3 = Color3.new(0, 1, 0)
+        elseif healthPercent > 0.3 then
+            bar.BackgroundColor3 = Color3.new(1, 0.8, 0)
+        else
+            bar.BackgroundColor3 = Color3.new(1, 0, 0)
+        end
+    end
+    
+    humanoid.HealthChanged:Connect(updateHealth)
+    updateHealth()
+    
+    -- Cleanup
+    player.CharacterRemoving:Connect(function()
+        if billboardHealth then billboardHealth:Destroy() end
+        if billboardBox then billboardBox:Destroy() end
+    end)
+end
+
+-- Áp dụng cho tất cả player
+for _, player in ipairs(Players:GetPlayers()) do
+    createESP(player)
+end
+
+Players.PlayerAdded:Connect(createESP)
