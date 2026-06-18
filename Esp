@@ -1,0 +1,127 @@
+-- YOU COPY MY SCRIPT YOU ARE GAY
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local lp = Players.LocalPlayer
+
+local color = Color3.fromRGB(255, 64, 64)
+local active = {}
+
+local function teardown(player)
+    local g = active[player.UserId]
+    if not g then return end
+    for _, c in ipairs(g.conns) do pcall(function() c:Disconnect() end) end
+    for _, p in ipairs(g.parts) do pcall(function() p:Destroy() end) end
+    active[player.UserId] = nil
+end
+
+local function attach(player)
+    if player == lp then return end
+    teardown(player)
+    
+    local char = player.Character
+    if not char then return end
+    
+    local head = char:FindFirstChild("Head")
+    local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildOfClass("BasePart")
+    if not head or not root then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+
+    -- Highlight
+    local hl = Instance.new("Highlight")
+    hl.FillTransparency = 1
+    hl.OutlineColor = color
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = char
+    hl.Parent = char
+
+    -- ==================== NAME + HP + DISTANCE GUI ====================
+    local nameGui = Instance.new("BillboardGui")
+    nameGui.Adornee = head
+    nameGui.AlwaysOnTop = true
+    nameGui.Size = UDim2.new(0, 280, 0, 55)
+    nameGui.StudsOffset = Vector3.new(0, 3.2, 0)
+    nameGui.LightInfluence = 0
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(1, 0, 1, 0)
+    mainFrame.BackgroundTransparency = 1
+    mainFrame.Parent = nameGui
+
+    -- Dòng 1: Tên | HP
+    local topLbl = Instance.new("TextLabel")
+    topLbl.Size = UDim2.new(1, 0, 0.5, 0)
+    topLbl.Position = UDim2.new(0, 0, 0, 0)
+    topLbl.BackgroundTransparency = 1
+    topLbl.TextColor3 = color
+    topLbl.Font = Enum.Font.GothamSemibold
+    topLbl.TextSize = 15
+    topLbl.TextXAlignment = Enum.TextXAlignment.Center
+    topLbl.TextYAlignment = Enum.TextYAlignment.Bottom
+    topLbl.Parent = mainFrame
+
+    local topStroke = Instance.new("UIStroke")
+    topStroke.Color = Color3.fromRGB(0, 0, 0)
+    topStroke.Thickness = 1.6
+    topStroke.Parent = topLbl
+
+    -- Dòng 2: [Khoảng cách m]
+    local distLbl = Instance.new("TextLabel")
+    distLbl.Size = UDim2.new(1, 0, 0.5, 0)
+    distLbl.Position = UDim2.new(0, 0, 0.5, 0)
+    distLbl.BackgroundTransparency = 1
+    distLbl.TextColor3 = color
+    distLbl.Font = Enum.Font.GothamSemibold
+    distLbl.TextSize = 13.5
+    distLbl.TextXAlignment = Enum.TextXAlignment.Center
+    distLbl.TextYAlignment = Enum.TextYAlignment.Top
+    distLbl.Text = "[0m]"
+    distLbl.Parent = mainFrame
+
+    local distStroke = Instance.new("UIStroke")
+    distStroke.Color = Color3.fromRGB(0, 0, 0)
+    distStroke.Thickness = 1.5
+    distStroke.Parent = distLbl
+
+    nameGui.Parent = head
+
+    -- ==================== UPDATE ====================
+    local conns = {}
+    table.insert(conns, RunService.RenderStepped:Connect(function()
+        local mychar = lp.Character
+        local myroot = mychar and mychar:FindFirstChild("HumanoidRootPart")
+
+        if hum and hum.Parent then
+            local hp = math.floor(hum.Health)
+            topLbl.Text = string.format("%s | %d", player.Name, hp)
+        end
+
+        if myroot and root and root.Parent then
+            local d = (myroot.Position - root.Position).Magnitude
+            local studs = math.floor(d + 0.5)
+            distLbl.Text = "[" .. studs .. "m]"
+        end
+    end))
+
+    if hum then
+        table.insert(conns, hum.Died:Connect(function() teardown(player) end))
+    end
+
+    active[player.UserId] = { 
+        conns = conns, 
+        parts = { hl, nameGui } 
+    }
+end
+
+-- Attach cho người chơi hiện tại và mới
+for _, p in ipairs(Players:GetPlayers()) do
+    attach(p)
+    p.CharacterAdded:Connect(function() task.wait(0.5); attach(p) end)
+end
+
+Players.PlayerAdded:Connect(function(p)
+    p.CharacterAdded:Connect(function() task.wait(0.5); attach(p) end)
+    if p.Character then task.wait(0.5); attach(p) end
+end)
+
+Players.PlayerRemoving:Connect(teardown)
