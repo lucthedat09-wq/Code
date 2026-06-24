@@ -1,0 +1,1729 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local GuiService = game:GetService("GuiService")
+local localPlayer = Players.LocalPlayer
+
+-- =====================
+-- ANTI-AFK
+-- =====================
+local VirtualUser = game:GetService("VirtualUser")
+
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
+end)
+
+local guiInset = GuiService:GetGuiInset()
+local INSET_Y = guiInset.Y
+-- Remotes
+local FixCar   = ReplicatedStorage.Remotes.Repair.FixCar
+local CollectJunk = ReplicatedStorage.Remotes.Base.CollectJunk
+local SellCar  = ReplicatedStorage.Remotes.Garage.SellCar
+local BuyCar   = ReplicatedStorage.Remotes.Merchant.BuyCar
+local SpawnCar = ReplicatedStorage.Remotes.SpawnCar
+
+-- =====================
+-- STATE VARIABLES
+-- =====================
+local currentCarName = "Set Car Name"
+local currentBind = Enum.KeyCode.E
+local isToggled = false
+local bindSetting = false
+local currentTab = "main"
+local connections = {}
+local running = true
+local minimised = false
+
+local flipSelectedRarities = { [2] = true }  -- default: Rare selected
+local flipRunning = false
+
+-- Farm state
+local farmSelectedRarities = { [2] = true }  -- default: Rare selected
+local farmRunning = false
+
+-- Area rotation state
+local areaRotateRunning = false
+local currentAreaIndex = 1
+
+-- Farm area rotation state
+local farmAreaRotateRunning = false
+local farmAreaIndex = 1
+
+-- Player base path
+local playerBaseId = "base_" .. tostring(localPlayer.UserId)
+
+-- Auto-collect state
+local collectRunning = false
+local isCollecting = false
+local collectInterval = 300
+local collectNextTime = 0
+
+-- Delivery state
+local deliveryRunning = false
+local isDelivering = false
+local DELIVERY_COOLDOWN = 30
+
+-- Early declarations for GUI labels used in loops
+local farmStatusLabel = nil
+local deliveryCountdownLabel = nil
+local collectCountdownLabel = nil
+local autoBuyStatusLabel = nil
+local currentAreaLabel = nil
+local farmCurrentAreaLabel = nil
+
+-- =====================
+-- PROCESSING LOCK
+-- =====================
+local isProcessing = false
+
+-- =====================
+-- RARITY INFO
+-- =====================
+local RARITY_INFO = {
+    [0] = { name = "Common",    color = Color3.fromRGB(180, 180, 180) },
+    [1] = { name = "Uncommon",  color = Color3.fromRGB(80,  180, 80)  },
+    [2] = { name = "Rare",      color = Color3.fromRGB(80,  120, 220) },
+    [3] = { name = "Epic",      color = Color3.fromRGB(160, 80,  220) },
+    [4] = { name = "Legendary", color = Color3.fromRGB(220, 160, 20)  },
+}
+
+-- =====================
+-- RARITY CACHE (hardcoded from CarsDataJson)
+-- =====================
+local carRarityCache = {
+    ["Acadi RVS Sedan"] = 0,
+    ["Artho F9 RT"] = 4,
+    ["Artho F9 ST"] = 3,
+    ["Artho G1000"] = 0,
+    ["Artho G451"] = 1,
+    ["Artho G623"] = 2,
+    ["Artho G672"] = 1,
+    ["Artho G770"] = 3,
+    ["Artho VS600"] = 3,
+    ["Artho X723"] = 1,
+    ["Bantt Rental"] = 0,
+    ["Beressa Char"] = 4,
+    ["Beressa Verona"] = 4,
+    ["Bogdan 2099"] = 0,
+    ["Chiverleta Cerano"] = 1,
+    ["Chiverleta Cerano XZ2"] = 3,
+    ["Chiverleta Ceretta X05"] = 2,
+    ["Chiverleta Ceretta X07"] = 3,
+    ["Chiverleta Golde"] = 0,
+    ["Chiverleta Imalo 67"] = 3,
+    ["Chiverleta Outskirts BT"] = 0,
+    ["Chiverleta Taohra BT"] = 0,
+    ["Chiverleta Taohra SVV"] = 2,
+    ["Cryele 222B"] = 2,
+    ["DAW 0909"] = 0,
+    ["Dawson Competition"] = 3,
+    ["Dawson Hammer"] = 3,
+    ["Dawson Hammer 70"] = 3,
+    ["Dawson Hammer JHT8"] = 1,
+    ["Dawson Hammer SCV"] = 2,
+    ["Dawson Rhino SCT"] = 3,
+    ["Deserter Grand Prince"] = 3,
+    ["Deutschotoren C2"] = 3,
+    ["Deutschotoren C297x"] = 2,
+    ["Deutschotoren C3"] = 3,
+    ["Deutschotoren C3 B63"] = 0,
+    ["Deutschotoren C393"] = 2,
+    ["Deutschotoren C3E5"] = 1,
+    ["Deutschotoren C4 DSG"] = 3,
+    ["Deutschotoren C483"] = 3,
+    ["Deutschotoren C5 600"] = 3,
+    ["Deutschotoren C5 B21"] = 0,
+    ["Deutschotoren C543"] = 0,
+    ["Deutschotoren C560"] = 1,
+    ["Deutschotoren C783"] = 1,
+    ["Deutschotoren C873"] = 3,
+    ["Deutschotoren S5"] = 3,
+    ["Deutschotoren U8"] = 3,
+    ["Fedsel Coronet"] = 0,
+    ["Fedsel E-Line Cargo"] = 0,
+    ["Fedsel Expedition"] = 1,
+    ["Fedsel Expedition Hybrid"] = 2,
+    ["Fedsel ST"] = 4,
+    ["Fedsel Stallion G3"] = 1,
+    ["Fedsel Stallion G5"] = 2,
+    ["Hakusho Ciri"] = 0,
+    ["Hakusho Concord"] = 1,
+    ["Hakusho MRB Sport"] = 3,
+    ["Ivar Manguster"] = 0,
+    ["Konsegga Artero"] = 4,
+    ["Ladammi Devil"] = 4,
+    ["Ladammi Valor"] = 4,
+    ["Land Ranger V500"] = 2,
+    ["Lilia Exima"] = 3,
+    ["Luxius BG600"] = 3,
+    ["Luxius FFA"] = 4,
+    ["Luxius OJ100"] = 1,
+    ["Luxius VQ"] = 2,
+    ["Marcalen-Denz  A500"] = 4,
+    ["Marcalen-Denz  K413"] = 2,
+    ["Marcalen-Denz  OS92 DBZ"] = 4,
+    ["Marcalen-Denz  VT"] = 3,
+    ["Marcalen-Denz B660"] = 1,
+    ["Marcalen-Denz LPS"] = 3,
+    ["Marcalen-Denz LPS94"] = 3,
+    ["Marcalen-Denz M24"] = 4,
+    ["Marcalen-Denz T600"] = 1,
+    ["Mazuta 29"] = 1,
+    ["Mazuta JO4"] = 2,
+    ["Mazuta Mint"] = 1,
+    ["Medallia 84F"] = 4,
+    ["Medallia B44"] = 4,
+    ["Mitta Aydens REO"] = 2,
+    ["MoLesennen 270N"] = 4,
+    ["Nikken 290S"] = 2,
+    ["Nikken Altimata"] = 0,
+    ["Nikken Sinata B21"] = 2,
+    ["Nikken Starline S340"] = 3,
+    ["Nikken Starline S350"] = 3,
+    ["Preischel 311 SR3 GTK"] = 4,
+    ["Preischel 313n"] = 3,
+    ["Preischel Crayele"] = 1,
+    ["Quantum H26"] = 1,
+    ["Quantum N500"] = 2,
+    ["Suiba Presse RST"] = 2,
+    ["Susuri Vitality"] = 0,
+    ["Tokina Absoluta SR 2.0"] = 3,
+    ["Tokina Absoluta SR 3.0"] = 2,
+    ["Tokina Karma"] = 1,
+    ["Tokina RP60"] = 1,
+    ["Volfsen Passo"] = 0,
+    ["Volfsen Rolf"] = 0,
+}
+
+
+-- =====================
+-- AREA DEFINITIONS
+-- =====================
+local AREAS = {
+    { name = "East Suburbs",  getPath = function() return workspace.FastTravel.Folder["East Suburbs"].Part end },
+    { name = "North Suburbs", getPath = function() return workspace.FastTravel.Folder["North Suburbs"].Part end },
+    { name = "West Suburbs",  getPath = function() return workspace.FastTravel.Folder["West Suburbs"].Part end },
+    { name = "Auction",       getPath = function() return workspace.FastTravel.Locations.Auction.Part end },
+    { name = "Junkyard",      getPath = function() return workspace.FastTravel.Locations.Junkyard.Part end },
+    { name = "Port",          getPath = function() return workspace.FastTravel.Locations.Port.Part end },
+}
+
+-- =====================
+-- HELPER FUNCTIONS
+-- =====================
+local function isValidCar(name)
+    local cars = ReplicatedStorage:FindFirstChild("Cars")
+    return cars and cars:FindFirstChild(name) ~= nil
+end
+
+local function getCarRarity(name)
+    if carRarityCache[name] ~= nil then
+        return carRarityCache[name]
+    end
+    warn("[CarFlipper] Cache miss for car: '" .. tostring(name) .. "' — defaulting to 0")
+    return 0
+end
+
+local function teleportToArea(area)
+    local ok, part = pcall(area.getPath)
+    if not ok or not part then return false end
+    local character = localPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local hrp = character.HumanoidRootPart
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        task.wait(0.05)
+        hrp.CFrame = CFrame.new(part.Position + Vector3.new(0, 5, 0))
+        task.wait(0.1)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        return true
+    end
+    return false
+end
+
+local function safeTeleport(hrp, position)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    task.wait(0.05)
+    hrp.CFrame = CFrame.new(position + Vector3.new(0, 5, 0))
+    task.wait(0.1)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    task.wait(0.6)
+end
+
+-- =====================
+-- OPEN GARAGE
+-- =====================
+local function forceOpenGarage()
+    local garageBtn = localPlayer.PlayerGui:FindFirstChild("RuntimeGui")
+    if not garageBtn then return end
+    local sidebar = garageBtn:FindFirstChild("SideBar")
+    if not sidebar then return end
+    local btn = sidebar:FindFirstChild("Garage")
+    if not btn then return end
+
+    local pos  = btn.AbsolutePosition
+    local size = btn.AbsoluteSize
+    local cx = pos.X + size.X / 2
+    local cy = pos.Y + size.Y / 2 + INSET_Y
+
+    mousemoveabs(cx, cy - 20)
+    task.wait(0.08)
+    mousemoveabs(cx, cy + 6)
+    task.wait(0.08)
+    mouse1click()
+    task.wait(1.2)
+end
+
+-- =====================
+-- CLOSE GARAGE (FIXED - Now clicks garage button like when buying)
+-- =====================
+local function forceCloseGarage()
+    local garageBtn = localPlayer.PlayerGui:FindFirstChild("RuntimeGui")
+    if not garageBtn then return end
+    local sidebar = garageBtn:FindFirstChild("SideBar")
+    if not sidebar then return end
+    local btn = sidebar:FindFirstChild("Garage")
+    if not btn then return end
+
+    local pos  = btn.AbsolutePosition
+    local size = btn.AbsoluteSize
+    local cx = pos.X + size.X / 2
+    local cy = pos.Y + size.Y / 2 + INSET_Y
+
+    mousemoveabs(cx, cy - 20)
+    task.wait(0.08)
+    mousemoveabs(cx, cy + 6)
+    task.wait(0.08)
+    mouse1click()
+    task.wait(1.2)
+end
+
+-- =====================
+-- FIND NEWEST CAR INDEX
+-- =====================
+local function findNewestCarIndex()
+    local rg = localPlayer.PlayerGui:FindFirstChild("RuntimeGui")
+    if not rg then return nil end
+    local garageGui = rg:FindFirstChild("Guis") and rg.Guis:FindFirstChild("Garage")
+    if not garageGui then return nil end
+    local carList = garageGui:FindFirstChild("MainFrame")
+        and garageGui.MainFrame:FindFirstChild("GridFrame")
+        and garageGui.MainFrame.GridFrame:FindFirstChild("GridFrame")
+        and garageGui.MainFrame.GridFrame.GridFrame:FindFirstChild("CarList")
+    if not carList then return nil end
+
+    local highestIndex = nil
+    for _, child in pairs(carList:GetChildren()) do
+        if child:IsA("Frame") and child.Visible then
+            local num = tonumber(child.Name)
+            if num then
+                if not highestIndex or num > highestIndex then
+                    highestIndex = num
+                end
+            end
+        end
+    end
+    return highestIndex and tostring(highestIndex) or nil
+end
+
+-- =====================
+-- COLLECT RESOURCES
+-- =====================
+local function collectResources(statusRef)
+    isCollecting = true
+    local character = localPlayer.Character
+    if not (character and character:FindFirstChild("HumanoidRootPart")) then
+        isCollecting = false
+        return
+    end
+
+    local hrp = character.HumanoidRootPart
+
+    local ok1, cashBox = pcall(function()
+        return workspace.PlayerBases[playerBaseId].CashBox.Box
+    end)
+    if ok1 and cashBox then
+        statusRef.Text = "Status: Collecting cash..."
+        safeTeleport(hrp, cashBox.Position)
+        local ok2, cashPrompt = pcall(function()
+            return workspace.PlayerBases[playerBaseId].CashBox.Box.CollectPrompt
+        end)
+        if ok2 and cashPrompt and cashPrompt:IsA("ProximityPrompt") then
+            fireproximityprompt(cashPrompt)
+            task.wait(0.8)
+        end
+    end
+
+    local ok3, partsBox = pcall(function()
+        return workspace.PlayerBases[playerBaseId].ResourceBox.Box
+    end)
+    if ok3 and partsBox then
+        statusRef.Text = "Status: Collecting parts..."
+        safeTeleport(hrp, partsBox.Position)
+        local ok4, partsPrompt = pcall(function()
+            return workspace.PlayerBases[playerBaseId].ResourceBox.Box.CollectPrompt
+        end)
+        if ok4 and partsPrompt and partsPrompt:IsA("ProximityPrompt") then
+            fireproximityprompt(partsPrompt)
+            task.wait(0.8)
+        end
+    end
+
+    collectNextTime = os.clock() + collectInterval
+    isCollecting = false
+end
+
+-- =====================
+-- DELIVERY SYSTEM
+-- =====================
+local DELIVER_DISTANCE = 30
+
+local function getBasePrimaryPos()
+    local ok, base = pcall(function()
+        return workspace.PlayerBases[playerBaseId]
+    end)
+    if ok and base and base.PrimaryPart then
+        return base.PrimaryPart.Position
+    end
+    return nil
+end
+
+local function collectJunkViaRemote(item)
+    -- TODO: Implement if needed
+end
+
+local function doDeliveries(statusRef)
+    isDelivering = true
+    local character = localPlayer.Character
+    if not (character and character:FindFirstChild("HumanoidRootPart")) then
+        isDelivering = false
+        return
+    end
+
+    local hrp = character.HumanoidRootPart
+    local activeInteractables = workspace:FindFirstChild("ActiveInteractables")
+    if not activeInteractables then
+        statusRef.Text = "Status: No interactables found"
+        isDelivering = false
+        return
+    end
+
+    local items = activeInteractables:GetChildren()
+    if #items == 0 then
+        statusRef.Text = "Status: No deliveries available"
+        isDelivering = false
+        return
+    end
+
+    local basePos = getBasePrimaryPos()
+    local itemsDelivered = 0
+
+    for _, item in ipairs(items) do
+        if not deliveryRunning then break end
+        if isProcessing or isCollecting then break end
+        
+        local targetPart = (item:IsA("Model") and item.PrimaryPart)
+            or item:FindFirstChildWhichIsA("BasePart", true)
+        if not targetPart then continue end
+
+        statusRef.Text = "Status: Picking up " .. item.Name .. "..."
+        safeTeleport(hrp, targetPart.Position)
+        task.wait(0.3)
+
+        -- Use BOTH remote + prompt
+        local prompt = item:FindFirstChild("JunkPrompt", true)
+
+        collectJunkViaRemote(item)
+
+        task.wait(0.25)
+
+        if prompt and prompt:IsA("ProximityPrompt") then
+            fireproximityprompt(prompt)
+            task.wait(1.0)
+        end
+
+        itemsDelivered = itemsDelivered + 1
+
+        if basePos then
+            statusRef.Text = "Status: Delivering to base..."
+            safeTeleport(hrp, basePos)
+            task.wait(0.8)
+        end
+    end
+
+    statusRef.Text = itemsDelivered > 0 and 
+        ("Status: Delivered " .. itemsDelivered .. " item(s) ✓") or 
+        "Status: No items collected"
+
+    isDelivering = false
+end
+
+local function deliveryLoop()
+    while deliveryRunning do
+        while (isProcessing or isCollecting) and deliveryRunning do
+            if farmStatusLabel then
+                farmStatusLabel.Text = "Status: Delivery waiting (busy)..."
+            end
+            task.wait(0.5)
+        end
+
+        if not deliveryRunning then break end
+
+        if farmStatusLabel then
+            doDeliveries(farmStatusLabel)
+        end
+
+        local cooldownEnd = os.clock() + DELIVERY_COOLDOWN
+
+        while deliveryRunning and os.clock() < cooldownEnd do
+            local remaining = math.ceil(cooldownEnd - os.clock())
+
+            if deliveryCountdownLabel then
+                deliveryCountdownLabel.Text = "Next delivery: " .. remaining .. "s"
+            end
+
+            task.wait(1)
+        end
+
+        if deliveryCountdownLabel then
+            deliveryCountdownLabel.Text = "Next delivery: —"
+        end
+    end
+
+    if deliveryCountdownLabel then
+        deliveryCountdownLabel.Text = "Next delivery: —"
+    end
+
+    if farmStatusLabel then
+        farmStatusLabel.Text = "Status: Idle"
+    end
+end
+
+-- =====================
+-- REMOTE BUY + GARAGE OPEN + REPAIR + SELL
+-- =====================
+local function doBuySequence(obj, statusLabelRef)
+    local prompt = obj:FindFirstChild("MerchantPrompt", true)
+    if not prompt then
+        statusLabelRef.Text = "Status: No MerchantPrompt on " .. obj.Name
+        return false
+    end
+
+    local merchantZone = prompt:GetAttribute("MerchantZone")
+    local merchantId   = prompt:GetAttribute("MerchantId")
+
+    if not merchantZone or not merchantId then
+        statusLabelRef.Text = "Status: Missing MerchantZone/Id on " .. obj.Name
+        return false
+    end
+
+    local character = localPlayer.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local part = (obj:IsA("Model") and obj.PrimaryPart)
+            or obj:FindFirstChildWhichIsA("BasePart", true)
+        if part then
+            safeTeleport(character.HumanoidRootPart, part.Position)
+        end
+    end
+
+    statusLabelRef.Text = "Status: Buying " .. obj.Name .. " (" .. merchantZone .. "/" .. tostring(merchantId) .. ")..."
+    BuyCar:FireServer(merchantZone, merchantId)
+    task.wait(2)
+
+    statusLabelRef.Text = "Status: Opening garage..."
+    forceOpenGarage()
+
+    return true
+end
+
+-- =====================
+-- FARM HELPERS
+-- =====================
+local function repairCar(carIndex, statusLabelRef)
+    statusLabelRef.Text = "Status: Repairing car [" .. carIndex .. "]..."
+    local maxAttempts = 15
+    local attempt = 0
+    while farmRunning and attempt < maxAttempts do
+        attempt = attempt + 1
+        FixCar:FireServer(carIndex)
+        task.wait(0.6)
+    end
+end
+
+local function sellCar(carIndex, statusLabelRef)
+    statusLabelRef.Text = "Status: Selling car [" .. carIndex .. "]..."
+    SellCar:FireServer(carIndex)
+    task.wait(1)
+end
+
+-- =====================
+-- PROCESS ONE FARM CAR
+-- =====================
+local function processFarmCar(obj)
+    local rarity = getCarRarity(obj.Name)
+    if not farmSelectedRarities[rarity] then return false end
+    if isProcessing or isCollecting or isDelivering then return false end
+
+    isProcessing = true
+    farmStatusLabel.Text = "Status: Processing " .. obj.Name .. "..."
+
+    local success = doBuySequence(obj, farmStatusLabel)
+    if not success then
+        isProcessing = false
+        return false
+    end
+
+    farmStatusLabel.Text = "Status: Finding car in garage..."
+    local carIndex = nil
+    for attempt = 1, 10 do
+        carIndex = findNewestCarIndex()
+        if carIndex then break end
+        task.wait(0.5)
+    end
+
+    if not carIndex then
+        farmStatusLabel.Text = "Status: Garage index not found, defaulting to 16"
+        carIndex = "16"
+    else
+        farmStatusLabel.Text = "Status: Got index [" .. carIndex .. "]"
+    end
+
+    -- Close garage before repairing
+    farmStatusLabel.Text = "Status: Closing garage..."
+    forceCloseGarage()
+    task.wait(0.5)
+
+    repairCar(carIndex, farmStatusLabel)
+    task.wait(0.5)
+
+    sellCar(carIndex, farmStatusLabel)
+    task.wait(1)
+
+    isProcessing = false
+    farmStatusLabel.Text = "Status: Cycle complete! ✓"
+    return true
+end
+
+-- =====================
+-- AUTO-COLLECT LOOP
+-- =====================
+local function collectLoop()
+    collectNextTime = os.clock()
+    while collectRunning do
+        local now = os.clock()
+        local remaining = collectNextTime - now
+        if remaining <= 0 then
+            while isProcessing and collectRunning do
+                farmStatusLabel.Text = "Status: Waiting to collect (car processing)..."
+                task.wait(0.5)
+            end
+            if not collectRunning then break end
+            collectResources(farmStatusLabel)
+            collectCountdownLabel.Text = "Next collect: 5:00"
+        else
+            local mins = math.floor(remaining / 60)
+            local secs = math.floor(remaining % 60)
+            collectCountdownLabel.Text = string.format("Next collect: %d:%02d", mins, secs)
+        end
+        task.wait(1)
+    end
+    collectCountdownLabel.Text = "Next collect: —"
+end
+
+-- =====================
+-- AUTO-BUY LOOP (buy only, no repair/sell)
+-- =====================
+local function autoBuyLoop()
+    while flipRunning do
+        if not isProcessing and not isCollecting and not isDelivering then
+            local activeMerchants = workspace:FindFirstChild("ActiveMerchants")
+         if activeMerchants then
+                for _, merchant in ipairs(activeMerchants:GetChildren()) do
+                    if not flipRunning then break end
+                    if isProcessing then break end
+                    if merchant:IsA("Folder") then
+                        for _, obj in ipairs(merchant:GetChildren()) do
+                            if not flipRunning then break end
+                            if isProcessing then break end
+                            if obj:IsA("Model") and isValidCar(obj.Name) then
+                                local rarity = getCarRarity(obj.Name)
+                                if flipSelectedRarities[rarity] then
+                                    local prompt = obj:FindFirstChild("MerchantPrompt", true)
+                                    if prompt then
+                                        local zone = prompt:GetAttribute("MerchantZone")
+                                        local id   = prompt:GetAttribute("MerchantId")
+                                        if zone and id then
+                                            isProcessing = true
+                                            autoBuyStatusLabel.Text = "Status: Buying " .. obj.Name
+                                            local character = localPlayer.Character
+                                            if character and character:FindFirstChild("HumanoidRootPart") then
+                                                local part = (obj:IsA("Model") and obj.PrimaryPart)
+                                                    or obj:FindFirstChildWhichIsA("BasePart", true)
+                                                if part then
+                                                    safeTeleport(character.HumanoidRootPart, part.Position)
+                                                end
+                                            end
+                                            BuyCar:FireServer(zone, id)
+                                            task.wait(1.5)
+                                            isProcessing = false
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        autoBuyStatusLabel.Text = "Status: Scanning..."
+        task.wait(2)
+    end
+    autoBuyStatusLabel.Text = "Status: Idle"
+end
+
+-- =====================
+-- AREA ROTATION LOOP (AUTO-BUY)
+-- =====================
+local function areaRotationLoop()
+    currentAreaIndex = 1
+    while areaRotateRunning do
+        local area = AREAS[currentAreaIndex]
+        currentAreaLabel.Text = "Area: " .. area.name
+        autoBuyStatusLabel.Text = "Status: Teleporting to " .. area.name
+        teleportToArea(area)
+        task.wait(1.5)
+
+        autoBuyStatusLabel.Text = "Status: Scanning " .. area.name
+        local activeMerchants = workspace:FindFirstChild("ActiveMerchants")
+        if activeMerchants then
+            for _, merchant in ipairs(activeMerchants:GetChildren()) do
+                if not areaRotateRunning then break end
+                if merchant:IsA("Folder") then
+                    for _, obj in ipairs(merchant:GetChildren()) do
+                        if not areaRotateRunning then break end
+                        if isProcessing or isCollecting or isDelivering then
+                            while (isProcessing or isCollecting or isDelivering) and areaRotateRunning do
+                                task.wait(0.3)
+                            end
+                        end
+                        if not areaRotateRunning then break end
+                        if obj:IsA("Model") and isValidCar(obj.Name) then
+                            local rarity = getCarRarity(obj.Name)
+                            if flipSelectedRarities[rarity] then
+                                local prompt = obj:FindFirstChild("MerchantPrompt", true)
+                                if prompt then
+                                    local zone = prompt:GetAttribute("MerchantZone")
+                                    local id   = prompt:GetAttribute("MerchantId")
+                                    if zone and id then
+                                        isProcessing = true
+                                        autoBuyStatusLabel.Text = "Status: Buying " .. obj.Name
+                                        local character = localPlayer.Character
+                                        if character and character:FindFirstChild("HumanoidRootPart") then
+                                            local part = (obj:IsA("Model") and obj.PrimaryPart)
+                                                or obj:FindFirstChildWhichIsA("BasePart", true)
+                                            if part then
+                                                safeTeleport(character.HumanoidRootPart, part.Position)
+                                            end
+                                        end
+                                        BuyCar:FireServer(zone, id)
+                                        task.wait(1.5)
+                                        isProcessing = false
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        currentAreaIndex = (currentAreaIndex % #AREAS) + 1
+        task.wait(2)
+    end
+    autoBuyStatusLabel.Text = "Status: Idle"
+    currentAreaLabel.Text = "Area: —"
+end
+
+-- =====================
+-- FARM LOOP
+-- =====================
+local function farmLoop()
+    while farmRunning do
+        local activeMerchants = workspace:FindFirstChild("ActiveMerchants")
+        if not activeMerchants then
+            farmStatusLabel.Text = "Status: Waiting for merchants..."
+            task.wait(2)
+            continue
+        end
+        local foundCar = false
+        for _, merchant in ipairs(activeMerchants:GetChildren()) do
+            if not farmRunning then break end
+            if merchant:IsA("Folder") then
+                for _, obj in ipairs(merchant:GetChildren()) do
+                    if not farmRunning then break end
+                    if obj:IsA("Model") and isValidCar(obj.Name) then
+                        if processFarmCar(obj) then foundCar = true end
+                        while (isProcessing or isCollecting or isDelivering) and farmRunning do
+                            task.wait(0.3)
+                        end
+                    end
+                end
+            end
+        end
+        if not foundCar then
+            -- Build a label listing all selected rarities
+            local selectedNames = {}
+            for i = 0, 4 do
+                if farmSelectedRarities[i] then
+                    table.insert(selectedNames, RARITY_INFO[i].name)
+                end
+            end
+            local rarityStr = #selectedNames > 0 and table.concat(selectedNames, "/") or "None"
+            farmStatusLabel.Text = "Status: Scanning for " .. rarityStr .. " cars..."
+        end
+        task.wait(2)
+    end
+    farmStatusLabel.Text = "Status: Idle"
+end
+
+-- =====================
+-- FARM AREA ROTATION LOOP
+-- =====================
+local function farmAreaRotationLoop()
+    farmAreaIndex = 1
+    while farmAreaRotateRunning do
+        local area = AREAS[farmAreaIndex]
+        farmCurrentAreaLabel.Text = "Area: " .. area.name
+        farmStatusLabel.Text = "Status: Teleporting to " .. area.name
+        teleportToArea(area)
+        task.wait(1.5)
+
+        farmStatusLabel.Text = "Status: Scanning " .. area.name
+        local activeMerchants = workspace:FindFirstChild("ActiveMerchants")
+        if activeMerchants then
+            for _, merchant in ipairs(activeMerchants:GetChildren()) do
+                if not farmAreaRotateRunning then break end
+                if merchant:IsA("Folder") then
+                    for _, obj in ipairs(merchant:GetChildren()) do
+                        if not farmAreaRotateRunning then break end
+                        if obj:IsA("Model") and isValidCar(obj.Name) then
+                            processFarmCar(obj)
+                            while (isProcessing or isCollecting or isDelivering) and farmAreaRotateRunning do
+                                task.wait(0.3)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        farmAreaIndex = (farmAreaIndex % #AREAS) + 1
+        task.wait(2)
+    end
+    farmStatusLabel.Text = "Status: Idle"
+    farmCurrentAreaLabel.Text = "Area: —"
+end
+
+-- =====================
+-- GUI SETUP
+-- =====================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombinedAutoFarmUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = localPlayer.PlayerGui
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 340, 0, 500)
+frame.Position = UDim2.new(0.5, -170, 0.5, -250)
+frame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 45)
+titleBar.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = frame
+Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+
+local titleBarFix = Instance.new("Frame")
+titleBarFix.Size = UDim2.new(1, 0, 0.5, 0)
+titleBarFix.Position = UDim2.new(0, 0, 0.5, 0)
+titleBarFix.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+titleBarFix.BorderSizePixel = 0
+titleBarFix.Parent = titleBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -80, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Text = "🚗 LARPWARE (CARFLIPPER)"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 15
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = titleBar
+
+local minimiseBtn = Instance.new("TextButton")
+minimiseBtn.Size = UDim2.new(0, 32, 0, 24)
+minimiseBtn.Position = UDim2.new(1, -40, 0.5, -12)
+minimiseBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+minimiseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimiseBtn.Text = "—"
+minimiseBtn.Font = Enum.Font.GothamBold
+minimiseBtn.TextSize = 14
+minimiseBtn.BorderSizePixel = 0
+minimiseBtn.Parent = titleBar
+Instance.new("UICorner", minimiseBtn).CornerRadius = UDim.new(0, 6)
+
+local tabFrame = Instance.new("Frame")
+tabFrame.Size = UDim2.new(1, -20, 0, 32)
+tabFrame.Position = UDim2.new(0, 10, 0, 52)
+tabFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+tabFrame.BorderSizePixel = 0
+tabFrame.Parent = frame
+Instance.new("UICorner", tabFrame).CornerRadius = UDim.new(0, 8)
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabLayout.Padding = UDim.new(0, 2)
+tabLayout.Parent = tabFrame
+
+local tabPadding = Instance.new("UIPadding")
+tabPadding.PaddingLeft = UDim.new(0, 4)
+tabPadding.PaddingRight = UDim.new(0, 4)
+tabPadding.PaddingTop = UDim.new(0, 4)
+tabPadding.PaddingBottom = UDim.new(0, 4)
+tabPadding.Parent = tabFrame
+
+local function makeTab(label, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.2, -2, 1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+    btn.TextColor3 = Color3.fromRGB(160, 160, 180)
+    btn.Text = label
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 9
+    btn.BorderSizePixel = 0
+    btn.LayoutOrder = order
+    btn.Parent = tabFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    return btn
+end
+
+local quickTabBtn    = makeTab("⚡Quick", 1)
+local carsTabBtn     = makeTab("🚘Cars", 2)
+local autoBuyTabBtn  = makeTab("💰Buy", 3)
+local farmTabBtn     = makeTab("🏭Farm", 4)
+local settingsTabBtn = makeTab("🔧Settings", 5)
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -20, 1, -100)
+contentFrame.Position = UDim2.new(0, 10, 0, 92)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Parent = frame
+
+-- =====================
+-- MINIMISE LOGIC
+-- =====================
+minimiseBtn.MouseButton1Click:Connect(function()
+    minimised = not minimised
+    if minimised then
+        frame.Size = UDim2.new(0, 340, 0, 45)
+        tabFrame.Visible = false
+        contentFrame.Visible = false
+        minimiseBtn.Text = "+"
+    else
+        frame.Size = UDim2.new(0, 340, 0, 500)
+        tabFrame.Visible = true
+        contentFrame.Visible = true
+        minimiseBtn.Text = "—"
+    end
+end)
+
+-- =====================
+-- QUICK TAB
+-- =====================
+local quickTab = Instance.new("Frame")
+quickTab.Size = UDim2.new(1, 0, 1, 0)
+quickTab.BackgroundTransparency = 1
+quickTab.Parent = contentFrame
+
+local carLabel = Instance.new("TextLabel")
+carLabel.Size = UDim2.new(1, 0, 0, 18)
+carLabel.BackgroundTransparency = 1
+carLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+carLabel.Text = "CAR NAME"
+carLabel.Font = Enum.Font.GothamBold
+carLabel.TextSize = 10
+carLabel.TextXAlignment = Enum.TextXAlignment.Left
+carLabel.Parent = quickTab
+
+local carInput = Instance.new("TextBox")
+carInput.Size = UDim2.new(1, 0, 0, 36)
+carInput.Position = UDim2.new(0, 0, 0, 20)
+carInput.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+carInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+carInput.Text = currentCarName
+carInput.Font = Enum.Font.Gotham
+carInput.TextSize = 12
+carInput.ClearTextOnFocus = false
+carInput.BorderSizePixel = 0
+carInput.Parent = quickTab
+Instance.new("UICorner", carInput).CornerRadius = UDim.new(0, 8)
+local carInputPad = Instance.new("UIPadding")
+carInputPad.PaddingLeft = UDim.new(0, 10)
+carInputPad.Parent = carInput
+
+carInput.FocusLost:Connect(function()
+    currentCarName = carInput.Text
+end)
+
+local bindLabel = Instance.new("TextLabel")
+bindLabel.Size = UDim2.new(1, 0, 0, 18)
+bindLabel.Position = UDim2.new(0, 0, 0, 64)
+bindLabel.BackgroundTransparency = 1
+bindLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+bindLabel.Text = "KEYBIND"
+bindLabel.Font = Enum.Font.GothamBold
+bindLabel.TextSize = 10
+bindLabel.TextXAlignment = Enum.TextXAlignment.Left
+bindLabel.Parent = quickTab
+
+local bindButton = Instance.new("TextButton")
+bindButton.Size = UDim2.new(1, 0, 0, 36)
+bindButton.Position = UDim2.new(0, 0, 0, 84)
+bindButton.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+bindButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+bindButton.Text = "Bind: " .. currentBind.Name
+bindButton.Font = Enum.Font.Gotham
+bindButton.TextSize = 12
+bindButton.BorderSizePixel = 0
+bindButton.Parent = quickTab
+Instance.new("UICorner", bindButton).CornerRadius = UDim.new(0, 8)
+
+bindButton.MouseButton1Click:Connect(function()
+    bindSetting = true
+    bindButton.Text = "Press any key..."
+    bindButton.BackgroundColor3 = Color3.fromRGB(60, 50, 20)
+end)
+
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(1, 0, 0, 42)
+toggleButton.Position = UDim2.new(0, 0, 0, 130)
+toggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = "● OFF"
+toggleButton.Font = Enum.Font.GothamBold
+toggleButton.TextSize = 14
+toggleButton.BorderSizePixel = 0
+toggleButton.Parent = quickTab
+Instance.new("UICorner", toggleButton).CornerRadius = UDim.new(0, 8)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 0, 182)
+statusLabel.BackgroundTransparency = 1
+statusLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
+statusLabel.Text = "Status: Idle"
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 11
+statusLabel.Parent = quickTab
+
+-- =====================
+-- CARS TAB
+-- =====================
+local carsTab = Instance.new("Frame")
+carsTab.Size = UDim2.new(1, 0, 1, 0)
+carsTab.BackgroundTransparency = 1
+carsTab.Visible = false
+carsTab.Parent = contentFrame
+
+local refreshBtn = Instance.new("TextButton")
+refreshBtn.Size = UDim2.new(1, 0, 0, 30)
+refreshBtn.BackgroundColor3 = Color3.fromRGB(40, 100, 180)
+refreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+refreshBtn.Text = "🔄 Refresh Car List"
+refreshBtn.Font = Enum.Font.GothamBold
+refreshBtn.TextSize = 11
+refreshBtn.BorderSizePixel = 0
+refreshBtn.Parent = carsTab
+Instance.new("UICorner", refreshBtn).CornerRadius = UDim.new(0, 8)
+
+local carListFrame = Instance.new("ScrollingFrame")
+carListFrame.Size = UDim2.new(1, 0, 1, -38)
+carListFrame.Position = UDim2.new(0, 0, 0, 38)
+carListFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+carListFrame.BorderSizePixel = 0
+carListFrame.ScrollBarThickness = 4
+carListFrame.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 120)
+carListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+carListFrame.Parent = carsTab
+Instance.new("UICorner", carListFrame).CornerRadius = UDim.new(0, 8)
+
+local carListLayout = Instance.new("UIListLayout")
+carListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+carListLayout.Padding = UDim.new(0, 4)
+carListLayout.Parent = carListFrame
+
+local carListPad = Instance.new("UIPadding")
+carListPad.PaddingLeft = UDim.new(0, 6)
+carListPad.PaddingRight = UDim.new(0, 6)
+carListPad.PaddingTop = UDim.new(0, 6)
+carListPad.Parent = carListFrame
+
+local function refreshCarList()
+    for _, c in ipairs(carListFrame:GetChildren()) do
+        if c:IsA("Frame") then c:Destroy() end
+    end
+    local activeMerchants = workspace:FindFirstChild("ActiveMerchants")
+    if not activeMerchants then
+        statusLabel.Text = "Status: ActiveMerchants not found"
+        return
+    end
+    local count = 0
+    for _, merchant in ipairs(activeMerchants:GetChildren()) do
+        if merchant:IsA("Folder") then
+            for _, obj in ipairs(merchant:GetChildren()) do
+                if obj:IsA("Model") and isValidCar(obj.Name) then
+                    count = count + 1
+                    local rarity = getCarRarity(obj.Name)
+                    local rarityInfo = RARITY_INFO[rarity] or RARITY_INFO[0]
+
+                    local row = Instance.new("Frame")
+                    row.Size = UDim2.new(1, 0, 0, 42)
+                    row.BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+                    row.BorderSizePixel = 0
+                    row.Parent = carListFrame
+                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+
+                    local rarityBar = Instance.new("Frame")
+                    rarityBar.Size = UDim2.new(0, 4, 1, 0)
+                    rarityBar.BackgroundColor3 = rarityInfo.color
+                    rarityBar.BorderSizePixel = 0
+                    rarityBar.Parent = row
+                    Instance.new("UICorner", rarityBar).CornerRadius = UDim.new(0, 4)
+
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(1, -80, 0, 22)
+                    nameLabel.Position = UDim2.new(0, 12, 0, 4)
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.TextColor3 = Color3.fromRGB(220, 220, 255)
+                    nameLabel.Text = obj.Name
+                    nameLabel.Font = Enum.Font.GothamBold
+                    nameLabel.TextSize = 11
+                    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+                    nameLabel.Parent = row
+
+                    local rarityLabel = Instance.new("TextLabel")
+                    rarityLabel.Size = UDim2.new(1, -12, 0, 14)
+                    rarityLabel.Position = UDim2.new(0, 12, 0, 26)
+                    rarityLabel.BackgroundTransparency = 1
+                    rarityLabel.TextColor3 = rarityInfo.color
+                    rarityLabel.Text = rarityInfo.name
+                    rarityLabel.Font = Enum.Font.GothamBold
+                    rarityLabel.TextSize = 9
+                    rarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    rarityLabel.Parent = row
+
+                    local tpBtn = Instance.new("TextButton")
+                    tpBtn.Size = UDim2.new(0, 64, 0, 28)
+                    tpBtn.Position = UDim2.new(1, -70, 0.5, -14)
+                    tpBtn.BackgroundColor3 = Color3.fromRGB(50, 130, 220)
+                    tpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    tpBtn.Text = "Go"
+                    tpBtn.Font = Enum.Font.GothamBold
+                    tpBtn.TextSize = 11
+                    tpBtn.BorderSizePixel = 0
+                    tpBtn.Parent = row
+                    Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 6)
+
+                    row.MouseEnter:Connect(function() row.BackgroundColor3 = Color3.fromRGB(55, 55, 75) end)
+                    row.MouseLeave:Connect(function() row.BackgroundColor3 = Color3.fromRGB(38, 38, 52) end)
+
+                    local car = obj
+                    tpBtn.MouseButton1Click:Connect(function()
+                        currentCarName = car.Name
+                        carInput.Text = car.Name
+                        statusLabel.Text = "Status: Selected " .. car.Name
+                        local character = localPlayer.Character
+                        if character and character:FindFirstChild("HumanoidRootPart") then
+                            local part = (car:IsA("Model") and car.PrimaryPart)
+                                or car:FindFirstChildWhichIsA("BasePart", true)
+                            if part then
+                                safeTeleport(character.HumanoidRootPart, part.Position)
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+    end
+    carListFrame.CanvasSize = UDim2.new(0, 0, 0, count * 46 + 10)
+    statusLabel.Text = count == 0 and "Status: No cars found" or "Status: Found " .. count .. " car(s)"
+end
+
+refreshBtn.MouseButton1Click:Connect(refreshCarList)
+
+-- =====================
+-- AUTO-BUY TAB
+-- =====================
+local autoBuyTab = Instance.new("Frame")
+autoBuyTab.Size = UDim2.new(1, 0, 1, 0)
+autoBuyTab.BackgroundTransparency = 1
+autoBuyTab.Visible = false
+autoBuyTab.Parent = contentFrame
+
+autoBuyStatusLabel = Instance.new("TextLabel")
+autoBuyStatusLabel.Size = UDim2.new(1, 0, 0, 20)
+autoBuyStatusLabel.BackgroundTransparency = 1
+autoBuyStatusLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
+autoBuyStatusLabel.Text = "Status: Idle"
+autoBuyStatusLabel.Font = Enum.Font.Gotham
+autoBuyStatusLabel.TextSize = 11
+autoBuyStatusLabel.Parent = autoBuyTab
+
+local raritySelLabel = Instance.new("TextLabel")
+raritySelLabel.Size = UDim2.new(1, 0, 0, 18)
+raritySelLabel.Position = UDim2.new(0, 0, 0, 26)
+raritySelLabel.BackgroundTransparency = 1
+raritySelLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+raritySelLabel.Text = "RARITIES TO BUY"
+raritySelLabel.Font = Enum.Font.GothamBold
+raritySelLabel.TextSize = 10
+raritySelLabel.TextXAlignment = Enum.TextXAlignment.Left
+raritySelLabel.Parent = autoBuyTab
+
+local rarityBtnFrame = Instance.new("Frame")
+rarityBtnFrame.Size = UDim2.new(1, 0, 0, 30)
+rarityBtnFrame.Position = UDim2.new(0, 0, 0, 46)
+rarityBtnFrame.BackgroundTransparency = 1
+rarityBtnFrame.Parent = autoBuyTab
+local rbLayout = Instance.new("UIListLayout")
+rbLayout.FillDirection = Enum.FillDirection.Horizontal
+rbLayout.Padding = UDim.new(0, 4)
+rbLayout.Parent = rarityBtnFrame
+
+-- Helper to refresh button visuals based on the selected set
+local rarityButtons = {}
+local function refreshFlipRarityButtons()
+    for i = 0, 4 do
+        if rarityButtons[i] then
+            if flipSelectedRarities[i] then
+                rarityButtons[i].BackgroundColor3 = RARITY_INFO[i].color
+                rarityButtons[i].TextColor3 = Color3.fromRGB(255, 255, 255)
+            else
+                rarityButtons[i].BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+                rarityButtons[i].TextColor3 = Color3.fromRGB(140, 140, 160)
+            end
+        end
+    end
+end
+
+for i = 0, 4 do
+    local info = RARITY_INFO[i]
+    local rbtn = Instance.new("TextButton")
+    rbtn.Size = UDim2.new(0, 56, 1, 0)
+    rbtn.BackgroundColor3 = flipSelectedRarities[i] and info.color or Color3.fromRGB(38, 38, 52)
+    rbtn.TextColor3 = flipSelectedRarities[i] and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 140, 160)
+    rbtn.Text = info.name:sub(1, 4)
+    rbtn.Font = Enum.Font.GothamBold
+    rbtn.TextSize = 9
+    rbtn.BorderSizePixel = 0
+    rbtn.Parent = rarityBtnFrame
+    Instance.new("UICorner", rbtn).CornerRadius = UDim.new(0, 6)
+    rarityButtons[i] = rbtn
+    local idx = i
+    rbtn.MouseButton1Click:Connect(function()
+        -- Toggle this rarity in/out of the selected set
+        if flipSelectedRarities[idx] then
+            flipSelectedRarities[idx] = nil
+        else
+            flipSelectedRarities[idx] = true
+        end
+        refreshFlipRarityButtons()
+    end)
+end
+
+local autoBuyToggleBtn = Instance.new("TextButton")
+autoBuyToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+autoBuyToggleBtn.Position = UDim2.new(0, 0, 0, 84)
+autoBuyToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+autoBuyToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoBuyToggleBtn.Text = "● AUTO-BUY OFF"
+autoBuyToggleBtn.Font = Enum.Font.GothamBold
+autoBuyToggleBtn.TextSize = 13
+autoBuyToggleBtn.BorderSizePixel = 0
+autoBuyToggleBtn.Parent = autoBuyTab
+Instance.new("UICorner", autoBuyToggleBtn).CornerRadius = UDim.new(0, 8)
+
+local areaRotateDivider = Instance.new("Frame")
+areaRotateDivider.Size = UDim2.new(1, 0, 0, 1)
+areaRotateDivider.Position = UDim2.new(0, 0, 0, 128)
+areaRotateDivider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+areaRotateDivider.BorderSizePixel = 0
+areaRotateDivider.Parent = autoBuyTab
+
+local areaRotateLabel = Instance.new("TextLabel")
+areaRotateLabel.Size = UDim2.new(1, 0, 0, 18)
+areaRotateLabel.Position = UDim2.new(0, 0, 0, 134)
+areaRotateLabel.BackgroundTransparency = 1
+areaRotateLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+areaRotateLabel.Text = "AREA ROTATION"
+areaRotateLabel.Font = Enum.Font.GothamBold
+areaRotateLabel.TextSize = 10
+areaRotateLabel.TextXAlignment = Enum.TextXAlignment.Left
+areaRotateLabel.Parent = autoBuyTab
+
+currentAreaLabel = Instance.new("TextLabel")
+currentAreaLabel.Size = UDim2.new(1, 0, 0, 14)
+currentAreaLabel.Position = UDim2.new(0, 0, 0, 154)
+currentAreaLabel.BackgroundTransparency = 1
+currentAreaLabel.TextColor3 = Color3.fromRGB(100, 180, 255)
+currentAreaLabel.Text = "Area: —"
+currentAreaLabel.Font = Enum.Font.Gotham
+currentAreaLabel.TextSize = 10
+currentAreaLabel.TextXAlignment = Enum.TextXAlignment.Left
+currentAreaLabel.Parent = autoBuyTab
+
+local areaRotateToggleBtn = Instance.new("TextButton")
+areaRotateToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+areaRotateToggleBtn.Position = UDim2.new(0, 0, 0, 170)
+areaRotateToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+areaRotateToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+areaRotateToggleBtn.Text = "● AREA ROTATION OFF"
+areaRotateToggleBtn.Font = Enum.Font.GothamBold
+areaRotateToggleBtn.TextSize = 12
+areaRotateToggleBtn.BorderSizePixel = 0
+areaRotateToggleBtn.Parent = autoBuyTab
+Instance.new("UICorner", areaRotateToggleBtn).CornerRadius = UDim.new(0, 8)
+
+-- =====================
+-- FARM TAB
+-- =====================
+local farmTab = Instance.new("Frame")
+farmTab.Size = UDim2.new(1, 0, 1, 0)
+farmTab.BackgroundTransparency = 1
+farmTab.Visible = false
+farmTab.Parent = contentFrame
+
+farmStatusLabel = Instance.new("TextLabel")
+farmStatusLabel.Size = UDim2.new(1, 0, 0, 20)
+farmStatusLabel.BackgroundTransparency = 1
+farmStatusLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
+farmStatusLabel.Text = "Status: Idle"
+farmStatusLabel.Font = Enum.Font.Gotham
+farmStatusLabel.TextSize = 11
+farmStatusLabel.Parent = farmTab
+
+local farmRarityLabel = Instance.new("TextLabel")
+farmRarityLabel.Size = UDim2.new(1, 0, 0, 18)
+farmRarityLabel.Position = UDim2.new(0, 0, 0, 26)
+farmRarityLabel.BackgroundTransparency = 1
+farmRarityLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+farmRarityLabel.Text = "RARITIES (BUY/REPAIR/SELL) "
+farmRarityLabel.Font = Enum.Font.GothamBold
+farmRarityLabel.TextSize = 10
+farmRarityLabel.TextXAlignment = Enum.TextXAlignment.Left
+farmRarityLabel.Parent = farmTab
+
+local farmRarityFrame = Instance.new("Frame")
+farmRarityFrame.Size = UDim2.new(1, 0, 0, 30)
+farmRarityFrame.Position = UDim2.new(0, 0, 0, 46)
+farmRarityFrame.BackgroundTransparency = 1
+farmRarityFrame.Parent = farmTab
+local frbLayout = Instance.new("UIListLayout")
+frbLayout.FillDirection = Enum.FillDirection.Horizontal
+frbLayout.Padding = UDim.new(0, 4)
+frbLayout.Parent = farmRarityFrame
+
+local farmRarityButtons = {}
+local function refreshFarmRarityButtons()
+    for i = 0, 4 do
+        if farmRarityButtons[i] then
+            if farmSelectedRarities[i] then
+                farmRarityButtons[i].BackgroundColor3 = RARITY_INFO[i].color
+                farmRarityButtons[i].TextColor3 = Color3.fromRGB(255, 255, 255)
+            else
+                farmRarityButtons[i].BackgroundColor3 = Color3.fromRGB(38, 38, 52)
+                farmRarityButtons[i].TextColor3 = Color3.fromRGB(140, 140, 160)
+            end
+        end
+    end
+end
+
+for i = 0, 4 do
+    local info = RARITY_INFO[i]
+    local fbtn = Instance.new("TextButton")
+    fbtn.Size = UDim2.new(0, 56, 1, 0)
+    fbtn.BackgroundColor3 = farmSelectedRarities[i] and info.color or Color3.fromRGB(38, 38, 52)
+    fbtn.TextColor3 = farmSelectedRarities[i] and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(140, 140, 160)
+    fbtn.Text = info.name:sub(1, 4)
+    fbtn.Font = Enum.Font.GothamBold
+    fbtn.TextSize = 9
+    fbtn.BorderSizePixel = 0
+    fbtn.Parent = farmRarityFrame
+    Instance.new("UICorner", fbtn).CornerRadius = UDim.new(0, 6)
+    farmRarityButtons[i] = fbtn
+    local idx = i
+    fbtn.MouseButton1Click:Connect(function()
+        -- Toggle this rarity in/out of the selected set
+        if farmSelectedRarities[idx] then
+            farmSelectedRarities[idx] = nil
+        else
+            farmSelectedRarities[idx] = true
+        end
+        refreshFarmRarityButtons()
+    end)
+end
+
+local farmToggleBtn = Instance.new("TextButton")
+farmToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+farmToggleBtn.Position = UDim2.new(0, 0, 0, 84)
+farmToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+farmToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+farmToggleBtn.Text = "● FARM OFF"
+farmToggleBtn.Font = Enum.Font.GothamBold
+farmToggleBtn.TextSize = 13
+farmToggleBtn.BorderSizePixel = 0
+farmToggleBtn.Parent = farmTab
+Instance.new("UICorner", farmToggleBtn).CornerRadius = UDim.new(0, 8)
+
+local farmAreaDivider = Instance.new("Frame")
+farmAreaDivider.Size = UDim2.new(1, 0, 0, 1)
+farmAreaDivider.Position = UDim2.new(0, 0, 0, 128)
+farmAreaDivider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+farmAreaDivider.BorderSizePixel = 0
+farmAreaDivider.Parent = farmTab
+
+local farmAreaRotateLabel = Instance.new("TextLabel")
+farmAreaRotateLabel.Size = UDim2.new(1, 0, 0, 18)
+farmAreaRotateLabel.Position = UDim2.new(0, 0, 0, 134)
+farmAreaRotateLabel.BackgroundTransparency = 1
+farmAreaRotateLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+farmAreaRotateLabel.Text = "AREA ROTATION"
+farmAreaRotateLabel.Font = Enum.Font.GothamBold
+farmAreaRotateLabel.TextSize = 10
+farmAreaRotateLabel.TextXAlignment = Enum.TextXAlignment.Left
+farmAreaRotateLabel.Parent = farmTab
+
+local farmAreaRotateToggleBtn = Instance.new("TextButton")
+farmAreaRotateToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+farmAreaRotateToggleBtn.Position = UDim2.new(0, 0, 0, 170)
+farmAreaRotateToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+farmAreaRotateToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+farmAreaRotateToggleBtn.Text = "● AREA ROTATION OFF"
+farmAreaRotateToggleBtn.Font = Enum.Font.GothamBold
+farmAreaRotateToggleBtn.TextSize = 12
+farmAreaRotateToggleBtn.BorderSizePixel = 0
+farmAreaRotateToggleBtn.Parent = farmTab
+Instance.new("UICorner", farmAreaRotateToggleBtn).CornerRadius = UDim.new(0, 8)
+
+local collectDivider = Instance.new("Frame")
+collectDivider.Size = UDim2.new(1, 0, 0, 1)
+collectDivider.Position = UDim2.new(0, 0, 0, 214)
+collectDivider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+collectDivider.BorderSizePixel = 0
+collectDivider.Parent = farmTab
+
+local collectSectionLabel = Instance.new("TextLabel")
+collectSectionLabel.Size = UDim2.new(1, 0, 0, 18)
+collectSectionLabel.Position = UDim2.new(0, 0, 0, 220)
+collectSectionLabel.BackgroundTransparency = 1
+collectSectionLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+collectSectionLabel.Text = "AUTO-COLLECT (CASH & PARTS)"
+collectSectionLabel.Font = Enum.Font.GothamBold
+collectSectionLabel.TextSize = 10
+collectSectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+collectSectionLabel.Parent = farmTab
+
+collectCountdownLabel = Instance.new("TextLabel")
+collectCountdownLabel.Size = UDim2.new(1, 0, 0, 14)
+collectCountdownLabel.Position = UDim2.new(0, 0, 0, 240)
+collectCountdownLabel.BackgroundTransparency = 1
+collectCountdownLabel.TextColor3 = Color3.fromRGB(100, 220, 180)
+collectCountdownLabel.Text = "Next collect: —"
+collectCountdownLabel.Font = Enum.Font.Gotham
+collectCountdownLabel.TextSize = 10
+collectCountdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+collectCountdownLabel.Parent = farmTab
+
+local collectToggleBtn = Instance.new("TextButton")
+collectToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+collectToggleBtn.Position = UDim2.new(0, 0, 0, 257)
+collectToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+collectToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+collectToggleBtn.Text = "● AUTO-COLLECT OFF"
+collectToggleBtn.Font = Enum.Font.GothamBold
+collectToggleBtn.TextSize = 12
+collectToggleBtn.BorderSizePixel = 0
+collectToggleBtn.Parent = farmTab
+Instance.new("UICorner", collectToggleBtn).CornerRadius = UDim.new(0, 8)
+
+local collectNowBtn = Instance.new("TextButton")
+collectNowBtn.Size = UDim2.new(1, 0, 0, 28)
+collectNowBtn.Position = UDim2.new(0, 0, 0, 300)
+collectNowBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 100)
+collectNowBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+collectNowBtn.Text = "⚡ Collect Now"
+collectNowBtn.Font = Enum.Font.GothamBold
+collectNowBtn.TextSize = 11
+collectNowBtn.BorderSizePixel = 0
+collectNowBtn.Parent = farmTab
+Instance.new("UICorner", collectNowBtn).CornerRadius = UDim.new(0, 8)
+
+local deliveryDivider = Instance.new("Frame")
+deliveryDivider.Size = UDim2.new(1, 0, 0, 1)
+deliveryDivider.Position = UDim2.new(0, 0, 0, 336)
+deliveryDivider.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+deliveryDivider.BorderSizePixel = 0
+deliveryDivider.Parent = farmTab
+
+local deliverySectionLabel = Instance.new("TextLabel")
+deliverySectionLabel.Size = UDim2.new(1, 0, 0, 18)
+deliverySectionLabel.Position = UDim2.new(0, 0, 0, 342)
+deliverySectionLabel.BackgroundTransparency = 1
+deliverySectionLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+deliverySectionLabel.Text = "AUTO-DELIVERY (Do not use RN)"
+deliverySectionLabel.Font = Enum.Font.GothamBold
+deliverySectionLabel.TextSize = 10
+deliverySectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+deliverySectionLabel.Parent = farmTab
+
+deliveryCountdownLabel = Instance.new("TextLabel")
+deliveryCountdownLabel.Size = UDim2.new(1, 0, 0, 14)
+deliveryCountdownLabel.Position = UDim2.new(0, 0, 0, 362)
+deliveryCountdownLabel.BackgroundTransparency = 1
+deliveryCountdownLabel.TextColor3 = Color3.fromRGB(255, 190, 80)
+deliveryCountdownLabel.Text = "Next delivery: —"
+deliveryCountdownLabel.Font = Enum.Font.Gotham
+deliveryCountdownLabel.TextSize = 10
+deliveryCountdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+deliveryCountdownLabel.Parent = farmTab
+
+local deliveryToggleBtn = Instance.new("TextButton")
+deliveryToggleBtn.Size = UDim2.new(1, 0, 0, 36)
+deliveryToggleBtn.Position = UDim2.new(0, 0, 0, 378)
+deliveryToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+deliveryToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+deliveryToggleBtn.Text = "● AUTO-DELIVERY OFF"
+deliveryToggleBtn.Font = Enum.Font.GothamBold
+deliveryToggleBtn.TextSize = 12
+deliveryToggleBtn.BorderSizePixel = 0
+deliveryToggleBtn.Parent = farmTab
+Instance.new("UICorner", deliveryToggleBtn).CornerRadius = UDim.new(0, 8)
+
+-- =====================
+-- SETTINGS TAB
+-- =====================
+local settingsTab = Instance.new("Frame")
+settingsTab.Size = UDim2.new(1, 0, 1, 0)
+settingsTab.BackgroundTransparency = 1
+settingsTab.Visible = false
+settingsTab.Parent = contentFrame
+
+local settingsLabel = Instance.new("TextLabel")
+settingsLabel.Size = UDim2.new(1, 0, 0, 18)
+settingsLabel.BackgroundTransparency = 1
+settingsLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+settingsLabel.Text = "SCRIPT CONTROLS"
+settingsLabel.Font = Enum.Font.GothamBold
+settingsLabel.TextSize = 10
+settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
+settingsLabel.Parent = settingsTab
+
+local unloadBtn = Instance.new("TextButton")
+unloadBtn.Size = UDim2.new(1, 0, 0, 42)
+unloadBtn.Position = UDim2.new(0, 0, 0, 22)
+unloadBtn.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
+unloadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+unloadBtn.Text = "⏹ Unload Script"
+unloadBtn.Font = Enum.Font.GothamBold
+unloadBtn.TextSize = 13
+unloadBtn.BorderSizePixel = 0
+unloadBtn.Parent = settingsTab
+Instance.new("UICorner", unloadBtn).CornerRadius = UDim.new(0, 8)
+
+local versionLabel = Instance.new("TextLabel")
+versionLabel.Size = UDim2.new(1, 0, 0, 20)
+versionLabel.Position = UDim2.new(0, 0, 1, -20)
+versionLabel.BackgroundTransparency = 1
+versionLabel.TextColor3 = Color3.fromRGB(60, 60, 80)
+versionLabel.Text = "LARPWARE INC"
+versionLabel.Font = Enum.Font.Gotham
+versionLabel.TextSize = 10
+versionLabel.Parent = settingsTab
+
+-- =====================
+-- TAB SWITCHING
+-- =====================
+local allTabs = {
+    { btn = quickTabBtn,    frame = quickTab,    name = "quick" },
+    { btn = carsTabBtn,     frame = carsTab,     name = "cars" },
+    { btn = autoBuyTabBtn,  frame = autoBuyTab,  name = "autobuy" },
+    { btn = farmTabBtn,     frame = farmTab,     name = "farm" },
+    { btn = settingsTabBtn, frame = settingsTab, name = "settings" },
+}
+
+local function switchTab(tabName)
+    currentTab = tabName
+    for _, t in ipairs(allTabs) do
+        t.frame.Visible = t.name == tabName
+        t.btn.BackgroundColor3 = t.name == tabName and Color3.fromRGB(70, 70, 200) or Color3.fromRGB(38, 38, 52)
+        t.btn.TextColor3 = t.name == tabName and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 160, 180)
+    end
+end
+
+switchTab("quick")
+quickTabBtn.MouseButton1Click:Connect(function() switchTab("quick") end)
+carsTabBtn.MouseButton1Click:Connect(function() switchTab("cars") refreshCarList() end)
+autoBuyTabBtn.MouseButton1Click:Connect(function() switchTab("autobuy") end)
+farmTabBtn.MouseButton1Click:Connect(function() switchTab("farm") end)
+settingsTabBtn.MouseButton1Click:Connect(function() switchTab("settings") end)
+
+-- =====================
+-- BUTTON CONNECTIONS
+-- =====================
+local function setToggle(state)
+    isToggled = state
+    if isToggled then
+        toggleButton.Text = "● ON"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        statusLabel.Text = "Status: Running..."
+    else
+        toggleButton.Text = "● OFF"
+        toggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        statusLabel.Text = "Status: Idle"
+    end
+end
+
+toggleButton.MouseButton1Click:Connect(function()
+    setToggle(not isToggled)
+end)
+
+autoBuyToggleBtn.MouseButton1Click:Connect(function()
+    flipRunning = not flipRunning
+    if flipRunning then
+        autoBuyToggleBtn.Text = "● AUTO-BUY ON"
+        autoBuyToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        task.spawn(autoBuyLoop)
+    else
+        autoBuyToggleBtn.Text = "● AUTO-BUY OFF"
+        autoBuyToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    end
+end)
+
+areaRotateToggleBtn.MouseButton1Click:Connect(function()
+    areaRotateRunning = not areaRotateRunning
+    if areaRotateRunning then
+        areaRotateToggleBtn.Text = "● AREA ROTATION ON"
+        areaRotateToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        task.spawn(areaRotationLoop)
+    else
+        areaRotateToggleBtn.Text = "● AREA ROTATION OFF"
+        areaRotateToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    end
+end)
+
+farmToggleBtn.MouseButton1Click:Connect(function()
+    farmRunning = not farmRunning
+    if farmRunning then
+        farmToggleBtn.Text = "● FARM ON"
+        farmToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        task.spawn(farmLoop)
+    else
+        farmToggleBtn.Text = "● FARM OFF"
+        farmToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    end
+end)
+
+farmAreaRotateToggleBtn.MouseButton1Click:Connect(function()
+    farmAreaRotateRunning = not farmAreaRotateRunning
+    if farmAreaRotateRunning then
+        farmAreaRotateToggleBtn.Text = "● AREA ROTATION ON"
+        farmAreaRotateToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        task.spawn(farmAreaRotationLoop)
+    else
+        farmAreaRotateToggleBtn.Text = "● AREA ROTATION OFF"
+        farmAreaRotateToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    end
+end)
+
+collectToggleBtn.MouseButton1Click:Connect(function()
+    collectRunning = not collectRunning
+    if collectRunning then
+        collectToggleBtn.Text = "● AUTO-COLLECT ON"
+        collectToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        task.spawn(collectLoop)
+    else
+        collectToggleBtn.Text = "● AUTO-COLLECT OFF"
+        collectToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        collectCountdownLabel.Text = "Next collect: —"
+    end
+end)
+
+collectNowBtn.MouseButton1Click:Connect(function()
+    if isCollecting then return end
+    task.spawn(function()
+        collectResources(farmStatusLabel)
+    end)
+end)
+
+deliveryToggleBtn.MouseButton1Click:Connect(function()
+    deliveryRunning = not deliveryRunning
+    if deliveryRunning then
+        deliveryToggleBtn.Text = "● AUTO-DELIVERY ON"
+        deliveryToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+        task.spawn(deliveryLoop)
+    else
+        deliveryToggleBtn.Text = "● AUTO-DELIVERY OFF"
+        deliveryToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+        deliveryCountdownLabel.Text = "Next delivery: —"
+    end
+end)
+
+unloadBtn.MouseButton1Click:Connect(function()
+    running = false
+    flipRunning = false
+    areaRotateRunning = false
+    farmRunning = false
+    farmAreaRotateRunning = false
+    collectRunning = false
+    isCollecting = false
+    deliveryRunning = false
+    isDelivering = false
+    isProcessing = false
+    for _, c in ipairs(connections) do c:Disconnect() end
+    screenGui:Destroy()
+end)
+
+-- =====================
+-- KEYBIND HANDLER
+-- =====================
+local inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not running then return end
+    if bindSetting and input.UserInputType == Enum.UserInputType.Keyboard then
+        currentBind = input.KeyCode
+        bindButton.Text = "Bind: " .. currentBind.Name
+        bindButton.BackgroundColor3 = Color3.fromRGB(26, 26, 36)
+        bindSetting = false
+        return
+    end
+    if gameProcessed or bindSetting then return end
+    if input.KeyCode == currentBind then
+        setToggle(not isToggled)
+    end
+end)
+
+table.insert(connections, inputConn)
