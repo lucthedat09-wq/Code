@@ -1,0 +1,147 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local ESPs = {}
+
+local function CreateESP(player)
+	if player == LocalPlayer then
+		return
+	end
+
+	local esp = Drawing.new("Square")
+	esp.Thickness = 2
+	esp.Filled = false
+	esp.Color = Color3.fromRGB(255,255,255)
+	esp.Visible = false
+
+	local healthOutline = Drawing.new("Square")
+	healthOutline.Thickness = 1
+	healthOutline.Filled = false
+	healthOutline.Color = Color3.fromRGB(0,0,0)
+	healthOutline.Visible = false
+
+	local healthBar = Drawing.new("Square")
+	healthBar.Filled = true
+	healthBar.Color = Color3.fromRGB(0,255,0)
+	healthBar.Visible = false
+
+	local nameText = Drawing.new("Text")
+	nameText.Center = true
+	nameText.Outline = true
+	nameText.Size = 16
+	nameText.Color = Color3.fromRGB(255,255,255)
+	nameText.Visible = false
+
+	ESPs[player] = {
+		Box = esp,
+		HealthOutline = healthOutline,
+		HealthBar = healthBar,
+		Name = nameText
+	}
+end
+
+local function RemoveESP(player)
+	local esp = ESPs[player]
+
+	if esp then
+		for _,obj in pairs(esp) do
+			obj:Remove()
+		end
+		ESPs[player] = nil
+	end
+end
+
+for _,player in ipairs(Players:GetPlayers()) do
+	CreateESP(player)
+end
+
+Players.PlayerAdded:Connect(CreateESP)
+Players.PlayerRemoving:Connect(RemoveESP)
+
+RunService.RenderStepped:Connect(function()
+	for player,esp in pairs(ESPs) do
+		local character = player.Character
+		local humanoid = character and character:FindFirstChild("Humanoid")
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+
+		if character and humanoid and root and humanoid.Health > 0 then
+			local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
+
+			if onScreen then
+				local myCharacter = LocalPlayer.Character
+local myRoot = myCharacter and myCharacter:FindFirstChild("HumanoidRootPart")
+
+if not myRoot then
+	continue
+end
+
+local distance = (myRoot.Position - root.Position).Magnitude
+
+				local topPos = Camera:WorldToViewportPoint(root.Position + Vector3.new(0,3,0))
+				local bottomPos = Camera:WorldToViewportPoint(root.Position - Vector3.new(0,3,0))
+
+				local height = math.abs(topPos.Y - bottomPos.Y)
+				local width = height / 2
+
+				local x = pos.X - width/2
+				local y = pos.Y - height/2
+
+				-- Box
+				esp.Box.Position = Vector2.new(x,y)
+				esp.Box.Size = Vector2.new(width,height)
+				esp.Box.Visible = true
+
+				-- Health Outline
+				esp.HealthOutline.Position = Vector2.new(x - 8,y)
+				esp.HealthOutline.Size = Vector2.new(4,height)
+				esp.HealthOutline.Visible = true
+
+				-- Health Bar
+				local healthPercent = humanoid.Health / humanoid.MaxHealth
+				local barHeight = height * healthPercent
+
+				esp.HealthBar.Position = Vector2.new(
+					x - 7,
+					y + (height - barHeight)
+				)
+
+				esp.HealthBar.Size = Vector2.new(2,barHeight)
+
+				if healthPercent > 0.5 then
+					esp.HealthBar.Color = Color3.fromRGB(0,255,0)
+				elseif healthPercent > 0.25 then
+					esp.HealthBar.Color = Color3.fromRGB(255,255,0)
+				else
+					esp.HealthBar.Color = Color3.fromRGB(255,0,0)
+				end
+
+				esp.HealthBar.Visible = true
+
+				-- Name + Distance
+				esp.Name.Text = string.format(
+					"%s [%.0fM]",
+					player.Name,
+					distance
+				)
+
+				esp.Name.Position = Vector2.new(
+					pos.X,
+					y - 18
+				)
+
+				esp.Name.Visible = true
+			else
+				for _,obj in pairs(esp) do
+					obj.Visible = false
+				end
+			end
+		else
+			for _,obj in pairs(esp) do
+				obj.Visible = false
+			end
+		end
+	end
+end)
