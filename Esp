@@ -85,7 +85,7 @@ local function attach(player)
 
     nameGui.Parent = head
 
-    -- ==================== UPDATE ====================
+
     local conns = {}
     table.insert(conns, RunService.RenderStepped:Connect(function()
         local mychar = lp.Character
