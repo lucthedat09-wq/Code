@@ -38,6 +38,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
      local Tab6o = MakeTab({Name = "booga booga"})
      local Tab7o = MakeTab({Name = "grow a garden 2"})
      local Tab8o = MakeTab({Name = "others"})
+     local Tab9o = MakeTab({Name = "esp"})
 
 ------- BUTTON
   AddButton(Tab1o, {
@@ -61,7 +62,7 @@ loadstring(game:HttpGet(("https://raw.githubusercontent.com/daucobonhi/Ui-Redz-V
   end
   })
 
-  AddButton(Tab8o, {
+  AddButton(Tab9o, {
      Name = "ESP(new)",
     Callback = function()
 	  loadstring(game:HttpGet("https://raw.githubusercontent.com/lucthedat09-wq/Code/refs/heads/main/Esp%20hack"))()
@@ -159,5 +160,12 @@ AddButton(Tab7o, {
     Callback = function()
 	  repeat task.wait() until game:IsLoaded() and game:GetService("Players") and game.Players.LocalPlayer and game.Players.LocalPlayer:FindFirstChild("PlayerGui")
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Teddyseetink/Haidepzai/refs/heads/main/main.lua"))()
+  end
+  })
+
+AddButton(Tab2o, {
+     Name = "ESP+aimbot",
+    Callback = function()
+	  loadstring(game:HttpGet("https://raw.githubusercontent.com/parasopsays/Jam/refs/heads/main/beef"))()
   end
   })
